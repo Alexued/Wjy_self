@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- App 主色调 -->
+    <color name="primary">#6C63FF</color>
+    <color name="primary_dark">#5A52D5</color>
+
+    <!-- 页面背景 -->
+    <color name="background">#F5F5FA</color>
+
+    <!-- 文字颜色 -->
+    <color name="text_primary">#1E1E2E</color>
+    <color name="text_secondary">#6E6E80</color>
+</resources>

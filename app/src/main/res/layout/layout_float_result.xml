@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 截图后 AI 解析结果的悬浮卡片 -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/float_result_card"
+    android:layout_width="320dp"
+    android:layout_height="wrap_content"
+    android:background="#1E1E2E"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:layout_margin="12dp">
+
+        <!-- 标题栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_ai_ball"
+                android:contentDescription="AI"
+                android:background="@drawable/bg_float_ball" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="AI 解析"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- 关闭按钮 -->
+            <TextView
+                android:id="@+id/btn_close_result"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:text="✕"
+                android:textColor="#9999AA"
+                android:textSize="16sp"
+                android:gravity="center"
+                android:background="@null"
+                android:padding="2dp" />
+        </LinearLayout>
+
+        <!-- 分割线 -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333355"
+            android:layout_marginBottom="12dp" />
+
+        <!-- 加载中文字 -->
+        <TextView
+            android:id="@+id/tv_loading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="✨ 分析中，请稍候..."
+            android:textColor="#9090CC"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:padding="8dp"
+            android:visibility="visible" />
+
+        <!-- 结果文字（可滚动） -->
+        <ScrollView
+            android:id="@+id/scroll_result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="280dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_result"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#E0E0FF"
+                android:textSize="14sp"
+                android:lineSpacingMultiplier="1.5" />
+        </ScrollView>
+
+</LinearLayout>

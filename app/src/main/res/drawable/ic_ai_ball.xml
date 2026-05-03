@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- AI 星星/闪光图标，用于悬浮球 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,4 L26.5,18 L40,20 L26.5,22 L24,36 L21.5,22 L8,20 L21.5,18 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:alpha="0.6"
+        android:pathData="M38,8 L39.2,13 L44,14 L39.2,15 L38,20 L36.8,15 L32,14 L36.8,13 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:alpha="0.4"
+        android:pathData="M12,30 L13,34 L17,35 L13,36 L12,40 L11,36 L7,35 L11,34 Z" />
+</vector>
