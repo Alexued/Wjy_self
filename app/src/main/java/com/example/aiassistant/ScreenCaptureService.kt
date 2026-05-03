@@ -29,6 +29,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 
 /**
  * 核心服务：
@@ -75,6 +78,11 @@ class ScreenCaptureService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // 预初始化 OCR 识别器（避免每次截图都重新加载模型）
+    private val ocrRecognizer by lazy {
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    }
+
     // ─────────────────────────────────────────────────────────────────────
 
     override fun onCreate() {
@@ -98,6 +106,10 @@ class ScreenCaptureService : Service() {
         // 后台线程
         captureThread = HandlerThread("CaptureThread").also { it.start() }
         captureHandler = Handler(captureThread!!.looper)
+
+        // 预热：提前初始化 OCR 模型和 HTTPS 连接
+        ocrRecognizer  // 触发 lazy 初始化，提前加载中文识别模型
+        OpenAIApiService.warmUpConnection("https://api.deepseek.com")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -319,7 +331,7 @@ class ScreenCaptureService : Service() {
                     }
                 }
             }
-        }, 500)
+        }, 150)
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -341,7 +353,7 @@ class ScreenCaptureService : Service() {
                     }
                 }
             }
-        }, 500)
+        }, 150)
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -353,8 +365,8 @@ class ScreenCaptureService : Service() {
         var image = reader.acquireLatestImage()
 
         if (image == null) {
-            // 可能缓冲区为空，等一小段时间再试
-            Thread.sleep(100)
+            // 快速重试，30ms 足够等一帧（60fps = 16ms/帧）
+            Thread.sleep(30)
             image = reader.acquireLatestImage()
         }
 
@@ -472,27 +484,103 @@ class ScreenCaptureService : Service() {
 
         val params = WindowManager.LayoutParams(
             dpToPx(320),
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            dpToPx(240), // 给个初始高度
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = dpToPx(32)
+            gravity = Gravity.TOP or Gravity.START
+            x = (screenWidth - dpToPx(320)) / 2
+            y = screenHeight / 2
         }
 
         resultCardView = LayoutInflater.from(this).inflate(R.layout.layout_float_result, null)
-        resultCardView?.findViewById<TextView>(R.id.btn_close_result)?.setOnClickListener {
+        
+        // 关闭按钮
+        resultCardView?.findViewById<View>(R.id.btn_close_result)?.setOnClickListener {
             removeResultCard()
         }
+
+        // 设置拖拽和缩放逻辑
+        setupResultCardInteractions(resultCardView!!, params)
+
         windowManager.addView(resultCardView, params)
+    }
+
+    private fun setupResultCardInteractions(view: View, params: WindowManager.LayoutParams) {
+        val card = view.findViewById<View>(R.id.float_result_card)
+        val header = view.findViewById<View>(R.id.layout_result_header)
+        val resizeHandle = view.findViewById<View>(R.id.btn_resize_handle)
+
+        // 1. 拖拽逻辑 (点击 Header 拖动)
+        header.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        params.x = initialX + (event.rawX - initialTouchX).toInt()
+                        params.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager.updateViewLayout(view, params)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        // 2. 缩放逻辑 (拖动右下角手柄)
+        resizeHandle.setOnTouchListener(object : View.OnTouchListener {
+            private var initialWidth = 0
+            private var initialHeight = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialWidth = params.width
+                        initialHeight = params.height
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val newWidth = initialWidth + (event.rawX - initialTouchX).toInt()
+                        val newHeight = initialHeight + (event.rawY - initialTouchY).toInt()
+                        
+                        // 限制最小尺寸
+                        params.width = newWidth.coerceAtLeast(dpToPx(200))
+                        params.height = newHeight.coerceAtLeast(dpToPx(150))
+                        
+                        // 同步更新卡片容器的宽度
+                        card.layoutParams.width = params.width
+                        card.layoutParams.height = params.height
+                        
+                        windowManager.updateViewLayout(view, params)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
     }
 
     private fun updateResultCard(text: String) {
         mainHandler.post {
             resultCardView?.let { card ->
                 card.findViewById<View>(R.id.tv_loading)?.visibility = View.GONE
-                card.findViewById<ScrollView>(R.id.scroll_result)?.visibility = View.VISIBLE
+                card.findViewById<View>(R.id.layout_content_wrapper)?.visibility = View.VISIBLE
                 card.findViewById<TextView>(R.id.tv_result)?.text = text
             }
         }
@@ -509,35 +597,78 @@ class ScreenCaptureService : Service() {
     // AI 调用
     // ─────────────────────────────────────────────────────────────────────
 
-    private fun sendToAI(bitmap: Bitmap) {
-        // 测试版本内置火山引擎 API 配置
-        val baseUrl = "https://ark.cn-beijing.volces.com/api/v3"
-        val apiKey = "1ee0cbb1-6df3-4c03-8c10-e4559ba3edf2"
-        val model = "doubao-seed-2-0-mini-260215"
-        
-        var prompt = AppPreferences.getPrompt(this)
-        if (prompt.isBlank()) {
-            prompt = "你看见了什么？"
-        }
+    /** OCR 前缩小图片，加速识别（长边限制 1280px） */
+    private fun downscaleForOcr(bitmap: Bitmap, maxSide: Int = 1280): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= maxSide && h <= maxSide) return bitmap
+        val scale = maxSide.toFloat() / maxOf(w, h)
+        return Bitmap.createScaledBitmap(bitmap, (w * scale).toInt(), (h * scale).toInt(), true)
+    }
 
-        // 使用流式 API，逐步显示 AI 回答（大幅降低首字等待时间）
-        OpenAIApiService.analyzeImageStream(
-            bitmap = bitmap,
-            baseUrl = baseUrl,
-            apiKey = apiKey,
-            model = model,
-            prompt = prompt,
-            onChunk = { _, fullTextSoFar ->
-                // 每收到一段文字就刷新卡片（流式输出）
-                updateResultCard(fullTextSoFar)
-            },
-            onComplete = { fullText ->
-                updateResultCard(fullText)
-            },
-            onError = { error ->
-                updateResultCard("❌ 请求失败：$error")
+    private fun sendToAI(bitmap: Bitmap) {
+        val t0 = System.currentTimeMillis()
+        updateResultCard("\uD83D\uDD0D 正在识别图片文字...")
+
+        // 缩小图片加速 OCR
+        val scaled = downscaleForOcr(bitmap)
+        val image = InputImage.fromBitmap(scaled, 0)
+
+        // 使用预初始化的识别器（跳过模型加载时间）
+        ocrRecognizer.process(image)
+            .addOnSuccessListener { visionText ->
+                if (scaled !== bitmap) scaled.recycle()
+                val ocrTime = System.currentTimeMillis() - t0
+                val ocrText = visionText.text
+
+                if (ocrText.isBlank()) {
+                    updateResultCard("❌ 未识别到文字，请重新截图")
+                    return@addOnSuccessListener
+                }
+
+                Log.d(TAG, "OCR完成: ${ocrTime}ms, 字数: ${ocrText.length}")
+                updateResultCard("\u2705 识别到 ${ocrText.length} 个字 (${ocrTime}ms)\n正在请求 AI...")
+
+                // DeepSeek API 配置
+                val baseUrl = "https://api.deepseek.com"
+                val apiKey = "sk-178ddf915bbc4c71b31f0e5ea66dd177"
+                val model = "deepseek-v4-flash"
+
+                var prompt = AppPreferences.getPrompt(this)
+                if (prompt.isBlank()) {
+                    prompt = "请解答或分析以下内容"
+                }
+
+                var firstChunkTime = -1L
+                val t2 = System.currentTimeMillis()
+
+                OpenAIApiService.analyzeTextStream(
+                    ocrText = ocrText,
+                    baseUrl = baseUrl,
+                    apiKey = apiKey,
+                    model = model,
+                    prompt = prompt,
+                    onChunk = { _, fullTextSoFar ->
+                        if (firstChunkTime == -1L) {
+                            firstChunkTime = System.currentTimeMillis() - t2
+                            Log.d(TAG, "AI首字延迟: ${firstChunkTime}ms")
+                        }
+                        updateResultCard(fullTextSoFar)
+                    },
+                    onComplete = { fullText ->
+                        val totalTime = System.currentTimeMillis() - t0
+                        Log.d(TAG, "总耗时: ${totalTime}ms (OCR: ${ocrTime}ms, AI: ${totalTime - ocrTime}ms)")
+                        updateResultCard(fullText)
+                    },
+                    onError = { error ->
+                        updateResultCard("❌ 请求失败：$error")
+                    }
+                )
             }
-        )
+            .addOnFailureListener { e ->
+                if (scaled !== bitmap) scaled.recycle()
+                updateResultCard("❌ 文字识别失败：${e.message}")
+            }
     }
 
     // ─────────────────────────────────────────────────────────────────────
