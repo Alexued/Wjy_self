@@ -30,9 +30,13 @@ object AppPreferences {
     private const val KEY_FIXED_REGION_SET = "fixed_region_set"
 
     // 默认值
-    private const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
-    private const val DEFAULT_MODEL = "gpt-4o"
-    private const val DEFAULT_PROMPT = "请仔细分析这张截图的内容，给出详细的解析和学习建议。"
+    const val DEFAULT_BASE_URL = "https://api.deepseek.com"
+    private const val DEFAULT_MODEL = "deepseek-v4-flash"
+    private const val DEFAULT_PROMPT = "你是一个专业的解题助手。请分析截图中的题目，严格遵循以下规则：\n" +
+            "1. 如果是选择题，第一行直接给出正确答案（如：正确答案：A），不要有任何铺垫\n" +
+            "2. 然后逐个分析A/B/C/D每个选项，说明该选项正确或错误的具体原因\n" +
+            "3. 只输出与题目解析直接相关的内容，不要问候语、结束语、学习建议等多余的话\n" +
+            "4. 禁止使用Markdown格式（不要用**、#、-、*等标记符号），用纯文本输出"
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -104,5 +108,35 @@ object AppPreferences {
             .remove(KEY_FIXED_LEFT).remove(KEY_FIXED_TOP)
             .remove(KEY_FIXED_RIGHT).remove(KEY_FIXED_BOTTOM)
             .apply()
+    }
+
+    // ── AI 解析卡片位置与大小 ───────────────────────────────────────────
+    private const val KEY_CARD_X = "card_x"
+    private const val KEY_CARD_Y = "card_y"
+    private const val KEY_CARD_W = "card_w"
+    private const val KEY_CARD_H = "card_h"
+    private const val KEY_CARD_SAVED = "card_saved"
+
+    fun isCardBoundsSaved(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_CARD_SAVED, false)
+
+    fun saveCardBounds(context: Context, x: Int, y: Int, w: Int, h: Int) {
+        prefs(context).edit()
+            .putInt(KEY_CARD_X, x)
+            .putInt(KEY_CARD_Y, y)
+            .putInt(KEY_CARD_W, w)
+            .putInt(KEY_CARD_H, h)
+            .putBoolean(KEY_CARD_SAVED, true)
+            .apply()
+    }
+
+    fun getCardBounds(context: Context): IntArray {
+        val p = prefs(context)
+        return intArrayOf(
+            p.getInt(KEY_CARD_X, 0),
+            p.getInt(KEY_CARD_Y, 0),
+            p.getInt(KEY_CARD_W, 0),
+            p.getInt(KEY_CARD_H, 0)
+        )
     }
 }

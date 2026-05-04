@@ -1,19 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 截图后 AI 解析结果的悬浮卡片 -->
-<!-- 截图后 AI 解析结果的悬浮卡片 -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/float_result_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:padding="28dp"> <!-- 边缘留出区域用于四边拖拽改变大小 -->
 
     <LinearLayout
         android:id="@+id/float_result_card"
-        android:layout_width="320dp"
-        android:layout_height="wrap_content"
-        android:background="#252538"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_float_card"
         android:orientation="vertical"
-        android:padding="0dp"
         android:elevation="8dp">
 
         <!-- 标题栏（拖动手柄） -->
@@ -23,7 +22,7 @@
             android:layout_height="48dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="#2A2A42"
+            android:background="@color/card_header_bg"
             android:paddingStart="16dp"
             android:paddingEnd="8dp">
 
@@ -38,8 +37,8 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="AI 解析助手"
-                android:textColor="#FFFFFF"
+                android:text="@string/card_title"
+                android:textColor="@color/card_title_text"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -48,8 +47,8 @@
                 android:id="@+id/btn_close_result"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:text="✕"
-                android:textColor="#AAABB8"
+                android:text="@string/card_close"
+                android:textColor="@color/card_close_btn"
                 android:textSize="18sp"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackgroundBorderless" />
@@ -58,15 +57,15 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#333355" />
+            android:background="@color/card_divider" />
 
         <!-- 加载中文字 -->
         <TextView
             android:id="@+id/tv_loading"
             android:layout_width="match_parent"
             android:layout_height="100dp"
-            android:text="✨ 正在思考中..."
-            android:textColor="#9090CC"
+            android:text="@string/card_loading"
+            android:textColor="@color/card_loading_text"
             android:textSize="14sp"
             android:gravity="center"
             android:visibility="visible" />
@@ -91,7 +90,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text=""
-                    android:textColor="#E0E0FF"
+                    android:textColor="@color/card_result_text"
                     android:textSize="14sp"
                     android:lineSpacingMultiplier="1.4"
                     android:textIsSelectable="true" />

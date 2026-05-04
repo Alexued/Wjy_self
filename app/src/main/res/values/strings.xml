@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">AIAssistant</string>
+
+    <!-- 悬浮卡片 -->
+    <string name="card_title">AI 解析助手</string>
+    <string name="card_loading">✨ 正在思考中...</string>
+    <string name="card_close">✕</string>
 </resources>

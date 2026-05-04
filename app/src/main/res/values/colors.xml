@@ -13,4 +13,12 @@
     <!-- 文字颜色 -->
     <color name="text_primary">#1E1E2E</color>
     <color name="text_secondary">#6E6E80</color>
+
+    <!-- 悬浮卡片颜色 -->
+    <color name="card_header_bg">#2A2A42</color>
+    <color name="card_divider">#333355</color>
+    <color name="card_loading_text">#9090CC</color>
+    <color name="card_result_text">#E0E0FF</color>
+    <color name="card_close_btn">#AAABB8</color>
+    <color name="card_title_text">#FFFFFF</color>
 </resources>

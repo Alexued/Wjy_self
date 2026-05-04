@@ -24,6 +24,19 @@ object OpenAIApiService {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    /** 跟踪当前正在执行的请求，用于取消 */
+    private var currentCall: Call? = null
+
+    /** 取消当前正在执行的请求（原子交换，避免竞态覆盖新请求） */
+    fun cancelCurrentRequest() {
+        val call = synchronized(this) {
+            val c = currentCall
+            currentCall = null
+            c
+        }
+        call?.let { if (!it.isCanceled()) it.cancel() }
+    }
+
     /**
      * 预热 HTTPS 连接（DNS + TCP + TLS 握手）
      * 在服务启动时调用，后续请求可复用连接池，节省 200-500ms
@@ -39,7 +52,7 @@ object OpenAIApiService {
                 client.newCall(request).execute().close()
                 android.util.Log.d("OpenAIApiService", "连接预热完成: $baseUrl")
             } catch (_: Exception) {
-                // 预热失败不影响正常使用
+                android.util.Log.d("OpenAIApiService", "连接预热失败: $baseUrl")
             }
         }.start()
     }
@@ -91,7 +104,10 @@ object OpenAIApiService {
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
-        client.newCall(request).enqueue(object : Callback {
+        cancelCurrentRequest() // 取消上一次未完成的请求
+        val call = client.newCall(request)
+        synchronized(this) { currentCall = call }
+        call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 onError("网络请求失败：${e.message}")
             }
@@ -109,8 +125,8 @@ object OpenAIApiService {
                     return
                 }
 
+                val reader = BufferedReader(InputStreamReader(body.byteStream()))
                 try {
-                    val reader = BufferedReader(InputStreamReader(body.byteStream()))
                     val fullText = StringBuilder()
 
                     var line: String?
@@ -127,23 +143,23 @@ object OpenAIApiService {
                             if (choices.length() == 0) continue
                             val delta = choices.getJSONObject(0)
                                 .optJSONObject("delta") ?: continue
-                                
+
                             var appendStr = ""
-                            
+
                             // 安全提取 reasoning_content
                             val r = delta.opt("reasoning_content")
                             if (r != null && r !== org.json.JSONObject.NULL) {
                                 val rStr = r.toString()
                                 if (rStr != "null") appendStr += rStr
                             }
-                            
+
                             // 安全提取 content
                             val c = delta.opt("content")
                             if (c != null && c !== org.json.JSONObject.NULL) {
                                 val cStr = c.toString()
                                 if (cStr != "null") appendStr += cStr
                             }
-                            
+
                             if (appendStr.isNotEmpty()) {
                                 fullText.append(appendStr)
                                 onChunk(appendStr, fullText.toString())
@@ -153,10 +169,11 @@ object OpenAIApiService {
                         }
                     }
 
-                    reader.close()
                     onComplete(fullText.toString())
                 } catch (e: Exception) {
                     onError("读取流式响应失败：${e.message}")
+                } finally {
+                    try { reader.close() } catch (_: Exception) {}
                 }
             }
         })

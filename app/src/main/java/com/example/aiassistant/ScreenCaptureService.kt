@@ -29,9 +29,12 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.equationl.ncnnandroidppocr.OCR
+import com.equationl.ncnnandroidppocr.bean.Device
+import com.equationl.ncnnandroidppocr.bean.DrawModel
+import com.equationl.ncnnandroidppocr.bean.ImageSize
+import com.equationl.ncnnandroidppocr.bean.ModelType
+import com.equationl.ncnnandroidppocr.bean.OcrResult
 
 /**
  * 核心服务：
@@ -64,6 +67,7 @@ class ScreenCaptureService : Service() {
 
     // MediaProjection（持续运行）
     private var mediaProjection: MediaProjection? = null
+    private var mediaProjectionCallback: MediaProjection.Callback? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
 
@@ -75,12 +79,28 @@ class ScreenCaptureService : Service() {
     private var screenWidth = 0
     private var screenHeight = 0
     private var screenDensity = 0
+    private var displayDensity = 0f
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // 预初始化 OCR 识别器（避免每次截图都重新加载模型）
-    private val ocrRecognizer by lazy {
-        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    // 防抖：避免快速双击触发并发截图管道
+    private var isCapturing = false
+
+    // PaddleOCR 识别引擎
+    private var ocrAvailable = false
+    private val paddleOcr: OCR by lazy {
+        val ocr = OCR()
+        val initResult = ocr.initModelFromAssert(assets, ModelType.Mobile, ImageSize.Size720, Device.CPU)
+        if (initResult) {
+            Log.i(TAG, "PaddleOCR 初始化成功")
+        } else {
+            Log.e(TAG, "PaddleOCR 初始化失败")
+            mainHandler.post {
+                Toast.makeText(this@ScreenCaptureService, "文字识别引擎初始化失败，请重启应用", Toast.LENGTH_LONG).show()
+            }
+        }
+        ocrAvailable = initResult
+        ocr
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -102,14 +122,15 @@ class ScreenCaptureService : Service() {
         screenWidth = metrics.widthPixels
         screenHeight = metrics.heightPixels
         screenDensity = metrics.densityDpi
+        displayDensity = metrics.density
 
         // 后台线程
         captureThread = HandlerThread("CaptureThread").also { it.start() }
         captureHandler = Handler(captureThread!!.looper)
 
         // 预热：提前初始化 OCR 模型和 HTTPS 连接
-        ocrRecognizer  // 触发 lazy 初始化，提前加载中文识别模型
-        OpenAIApiService.warmUpConnection("https://api.deepseek.com")
+        paddleOcr  // 触发 lazy 初始化，提前加载中文识别模型
+        OpenAIApiService.warmUpConnection(AppPreferences.getApiBaseUrl(this).ifBlank { AppPreferences.DEFAULT_BASE_URL })
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -147,6 +168,7 @@ class ScreenCaptureService : Service() {
         removeResultCard()
         releaseMediaProjection()
         captureThread?.quitSafely()
+        OpenAIApiService.cancelCurrentRequest()
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -161,7 +183,7 @@ class ScreenCaptureService : Service() {
 
         // Android 14+（API 34+）要求：必须先注册 Callback 才能 createVirtualDisplay
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            mediaProjection!!.registerCallback(object : MediaProjection.Callback() {
+            mediaProjectionCallback = object : MediaProjection.Callback() {
                 override fun onStop() {
                     Log.d(TAG, "MediaProjection stopped by system")
                     mainHandler.post {
@@ -169,7 +191,8 @@ class ScreenCaptureService : Service() {
                         Toast.makeText(this@ScreenCaptureService, "录屏已被系统终止", Toast.LENGTH_SHORT).show()
                     }
                 }
-            }, mainHandler)
+            }
+            mediaProjection!!.registerCallback(mediaProjectionCallback!!, mainHandler)
         }
 
         imageReader = ImageReader.newInstance(
@@ -212,22 +235,24 @@ class ScreenCaptureService : Service() {
         windowManager.addView(floatBallView, floatBallParams)
     }
 
+    /** 永久移除悬浮球（服务销毁时调用，同时置空引用） */
     private fun removeFloatBall() {
         floatBallView?.let {
-            try { windowManager.removeView(it) } catch (_: Exception) {}
+            try { windowManager.removeView(it) } catch (_: IllegalArgumentException) {}
             floatBallView = null
         }
     }
 
+    /** 临时隐藏悬浮球（截图时避免球出现在画面中，保留引用以便重新挂载） */
     private fun detachFloatBall() {
         floatBallView?.let {
-            try { windowManager.removeView(it) } catch (_: Exception) {}
+            try { windowManager.removeView(it) } catch (_: IllegalArgumentException) {}
         }
     }
 
     private fun reattachFloatBall() {
         floatBallView?.let {
-            try { windowManager.addView(it, floatBallParams) } catch (_: Exception) {}
+            try { windowManager.addView(it, floatBallParams) } catch (_: IllegalStateException) {}
         }
     }
 
@@ -246,10 +271,11 @@ class ScreenCaptureService : Service() {
         }
 
         view.setOnTouchListener { _, event ->
+            val params = floatBallParams ?: return@setOnTouchListener false
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialX = floatBallParams!!.x
-                    initialY = floatBallParams!!.y
+                    initialX = params.x
+                    initialY = params.y
                     touchStartX = event.rawX
                     touchStartY = event.rawY
                     isDrag = false
@@ -264,9 +290,9 @@ class ScreenCaptureService : Service() {
                         mainHandler.removeCallbacks(longPressRunnable)
                     }
                     if (isDrag) {
-                        floatBallParams!!.x = (initialX + dx).toInt()
-                        floatBallParams!!.y = (initialY + dy).toInt()
-                        windowManager.updateViewLayout(view, floatBallParams)
+                        params.x = (initialX + dx).toInt()
+                        params.y = (initialY + dy).toInt()
+                        windowManager.updateViewLayout(view, params)
                     }
                     true
                 }
@@ -287,11 +313,13 @@ class ScreenCaptureService : Service() {
     // ─────────────────────────────────────────────────────────────────────
 
     private fun onFloatBallClicked() {
+        if (isCapturing) return  // 防抖：上一次截图管道尚未完成
         if (imageReader == null || virtualDisplay == null) {
             Toast.makeText(this, "录屏未就绪，请重启应用", Toast.LENGTH_SHORT).show()
             return
         }
 
+        isCapturing = true
         val mode = AppPreferences.getCaptureMode(this)
         when (mode) {
             AppPreferences.MODE_FIXED_AREA -> {
@@ -320,13 +348,16 @@ class ScreenCaptureService : Service() {
                     reattachFloatBall()
                     if (bitmap != null) {
                         val cropped = cropBitmap(bitmap, cropRect)
+                        bitmap.recycle()
                         if (cropped != null) {
                             showResultCard()
                             sendToAI(cropped)
                         } else {
+                            isCapturing = false
                             Toast.makeText(this@ScreenCaptureService, "裁剪失败", Toast.LENGTH_SHORT).show()
                         }
                     } else {
+                        isCapturing = false
                         Toast.makeText(this@ScreenCaptureService, "截图失败，请重试", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -348,6 +379,7 @@ class ScreenCaptureService : Service() {
                     if (bitmap != null) {
                         showAreaSelectionOverlay(bitmap, saveAsFixed)
                     } else {
+                        isCapturing = false
                         reattachFloatBall()
                         Toast.makeText(this@ScreenCaptureService, "截图失败，请重试", Toast.LENGTH_SHORT).show()
                     }
@@ -382,20 +414,26 @@ class ScreenCaptureService : Service() {
             val rowStride = planes[0].rowStride
             val rowPadding = rowStride - pixelStride * screenWidth
 
-            val bmp = Bitmap.createBitmap(
-                screenWidth + rowPadding / pixelStride,
-                screenHeight,
-                Bitmap.Config.ARGB_8888
-            )
-            bmp.copyPixelsFromBuffer(buffer)
+            var bmp: Bitmap? = null
+            try {
+                bmp = Bitmap.createBitmap(
+                    screenWidth + rowPadding / pixelStride,
+                    screenHeight,
+                    Bitmap.Config.ARGB_8888
+                )
+                bmp.copyPixelsFromBuffer(buffer)
+            } catch (e: Exception) {
+                bmp?.recycle()
+                throw e
+            }
 
             // 裁掉行填充
             if (rowPadding > 0) {
-                val cropped = Bitmap.createBitmap(bmp, 0, 0, screenWidth, screenHeight)
-                bmp.recycle()
+                val cropped = Bitmap.createBitmap(bmp!!, 0, 0, screenWidth, screenHeight)
+                bmp!!.recycle()
                 cropped
             } else {
-                bmp
+                bmp!!
             }
         } catch (e: Exception) {
             Log.e(TAG, "grabFrame error", e)
@@ -423,6 +461,7 @@ class ScreenCaptureService : Service() {
                 }
 
                 val cropped = cropBitmap(fullBitmap, rect)
+                fullBitmap.recycle()
                 if (cropped != null) {
                     showResultCard()
                     sendToAI(cropped)
@@ -431,8 +470,10 @@ class ScreenCaptureService : Service() {
                 }
             },
             onCancelled = {
+                isCapturing = false
                 removeAreaOverlay()
                 reattachFloatBall()
+                fullBitmap.recycle()
             }
         )
 
@@ -454,7 +495,7 @@ class ScreenCaptureService : Service() {
 
     private fun removeAreaOverlay() {
         areaOverlayView?.let {
-            try { windowManager.removeView(it) } catch (_: Exception) {}
+            try { windowManager.removeView(it) } catch (_: IllegalArgumentException) {}
             areaOverlayView = null
         }
     }
@@ -482,16 +523,29 @@ class ScreenCaptureService : Service() {
     private fun showResultCard() {
         removeResultCard()
 
+        var initialW = dpToPx(340)
+        var initialH = dpToPx(280)
+        var initialX = (screenWidth - initialW) / 2
+        var initialY = screenHeight / 2
+
+        if (AppPreferences.isCardBoundsSaved(this)) {
+            val bounds = AppPreferences.getCardBounds(this)
+            initialX = bounds[0]
+            initialY = bounds[1]
+            initialW = bounds[2]
+            initialH = bounds[3]
+        }
+
         val params = WindowManager.LayoutParams(
-            dpToPx(320),
-            dpToPx(240), // 给个初始高度
+            initialW,
+            initialH,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = (screenWidth - dpToPx(320)) / 2
-            y = screenHeight / 2
+            x = initialX
+            y = initialY
         }
 
         resultCardView = LayoutInflater.from(this).inflate(R.layout.layout_float_result, null)
@@ -508,11 +562,11 @@ class ScreenCaptureService : Service() {
     }
 
     private fun setupResultCardInteractions(view: View, params: WindowManager.LayoutParams) {
-        val card = view.findViewById<View>(R.id.float_result_card)
         val header = view.findViewById<View>(R.id.layout_result_header)
         val resizeHandle = view.findViewById<View>(R.id.btn_resize_handle)
+        resizeHandle?.visibility = View.GONE // 隐藏旧的右下角手柄
 
-        // 1. 拖拽逻辑 (点击 Header 拖动)
+        // 1. 拖拽移动逻辑 (点击 Header)
         header.setOnTouchListener(object : View.OnTouchListener {
             private var initialX = 0
             private var initialY = 0
@@ -534,41 +588,105 @@ class ScreenCaptureService : Service() {
                         windowManager.updateViewLayout(view, params)
                         return true
                     }
+                    MotionEvent.ACTION_UP -> {
+                        AppPreferences.saveCardBounds(this@ScreenCaptureService, params.x, params.y, params.width, params.height)
+                        return true
+                    }
                 }
                 return false
             }
         })
 
-        // 2. 缩放逻辑 (拖动右下角手柄)
-        resizeHandle.setOnTouchListener(object : View.OnTouchListener {
+        // 2. 8向缩放逻辑 (作用于根布局边缘)
+        // 根布局有 28dp 的 padding，用户触摸到边缘 padding 区域时触发缩放
+        view.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
             private var initialWidth = 0
             private var initialHeight = 0
             private var initialTouchX = 0f
             private var initialTouchY = 0f
+            private var mode = 0 // 1:L, 2:T, 3:R, 4:B, 5:TL, 6:TR, 7:BL, 8:BR
+
+            private val EDGE_SIZE = dpToPx(40) // 边缘判定区域（略大于padding确保覆盖）
 
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        initialWidth = params.width
-                        initialHeight = params.height
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        return true
+                        val ex = event.x
+                        val ey = event.y
+                        val w = view.width
+                        val h = view.height
+
+                        val isLeft = ex < EDGE_SIZE
+                        val isRight = ex > w - EDGE_SIZE
+                        val isTop = ey < EDGE_SIZE
+                        val isBottom = ey > h - EDGE_SIZE
+
+                        mode = when {
+                            isLeft && isTop -> 5
+                            isRight && isTop -> 6
+                            isLeft && isBottom -> 7
+                            isRight && isBottom -> 8
+                            isLeft -> 1
+                            isTop -> 2
+                            isRight -> 3
+                            isBottom -> 4
+                            else -> 0
+                        }
+
+                        if (mode != 0) {
+                            initialX = params.x
+                            initialY = params.y
+                            initialWidth = params.width
+                            initialHeight = params.height
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            return true
+                        }
+                        return false // 不是边缘，交给子 View 处理
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        val newWidth = initialWidth + (event.rawX - initialTouchX).toInt()
-                        val newHeight = initialHeight + (event.rawY - initialTouchY).toInt()
-                        
-                        // 限制最小尺寸
-                        params.width = newWidth.coerceAtLeast(dpToPx(200))
-                        params.height = newHeight.coerceAtLeast(dpToPx(150))
-                        
-                        // 同步更新卡片容器的宽度
-                        card.layoutParams.width = params.width
-                        card.layoutParams.height = params.height
-                        
+                        if (mode == 0) return false
+                        val dx = (event.rawX - initialTouchX).toInt()
+                        val dy = (event.rawY - initialTouchY).toInt()
+
+                        var newX = initialX
+                        var newY = initialY
+                        var newW = initialWidth
+                        var newH = initialHeight
+
+                        val minW = dpToPx(240)
+                        val minH = dpToPx(200)
+
+                        if (mode in listOf(1, 5, 7)) { // Left
+                            newW = (initialWidth - dx).coerceAtLeast(minW)
+                            newX = initialX + (initialWidth - newW)
+                        }
+                        if (mode in listOf(3, 6, 8)) { // Right
+                            newW = (initialWidth + dx).coerceAtLeast(minW)
+                        }
+                        if (mode in listOf(2, 5, 6)) { // Top
+                            newH = (initialHeight - dy).coerceAtLeast(minH)
+                            newY = initialY + (initialHeight - newH)
+                        }
+                        if (mode in listOf(4, 7, 8)) { // Bottom
+                            newH = (initialHeight + dy).coerceAtLeast(minH)
+                        }
+
+                        params.x = newX
+                        params.y = newY
+                        params.width = newW
+                        params.height = newH
                         windowManager.updateViewLayout(view, params)
                         return true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (mode != 0) {
+                            AppPreferences.saveCardBounds(this@ScreenCaptureService, params.x, params.y, params.width, params.height)
+                            mode = 0
+                            return true
+                        }
                     }
                 }
                 return false
@@ -587,18 +705,23 @@ class ScreenCaptureService : Service() {
     }
 
     private fun removeResultCard() {
+        isCapturing = false
         resultCardView?.let {
-            try { windowManager.removeView(it) } catch (_: Exception) {}
+            try { windowManager.removeView(it) } catch (_: IllegalArgumentException) {}
             resultCardView = null
         }
     }
+
+    // 用于丢弃旧的请求回调
+    @Volatile
+    private var currentRequestId: Long = 0
 
     // ─────────────────────────────────────────────────────────────────────
     // AI 调用
     // ─────────────────────────────────────────────────────────────────────
 
-    /** OCR 前缩小图片，加速识别（长边限制 1280px） */
-    private fun downscaleForOcr(bitmap: Bitmap, maxSide: Int = 1280): Bitmap {
+    /** OCR 前缩小图片，加速识别（长边限制 960px 提速显著） */
+    private fun downscaleForOcr(bitmap: Bitmap, maxSide: Int = 960): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
         if (w <= maxSide && h <= maxSide) return bitmap
@@ -607,68 +730,98 @@ class ScreenCaptureService : Service() {
     }
 
     private fun sendToAI(bitmap: Bitmap) {
+        val requestId = System.currentTimeMillis()
+        currentRequestId = requestId
+        
         val t0 = System.currentTimeMillis()
         updateResultCard("\uD83D\uDD0D 正在识别图片文字...")
 
-        // 缩小图片加速 OCR
+        // 缩小图片加速 OCR (PaddleOCR 也能从较小图像受益)
         val scaled = downscaleForOcr(bitmap)
-        val image = InputImage.fromBitmap(scaled, 0)
-
-        // 使用预初始化的识别器（跳过模型加载时间）
-        ocrRecognizer.process(image)
-            .addOnSuccessListener { visionText ->
+        
+        captureHandler?.post {
+            // 回收输入 Bitmap 的辅助函数
+            fun recycleInput() {
                 if (scaled !== bitmap) scaled.recycle()
-                val ocrTime = System.currentTimeMillis() - t0
-                val ocrText = visionText.text
+                bitmap.recycle()
+            }
 
-                if (ocrText.isBlank()) {
-                    updateResultCard("❌ 未识别到文字，请重新截图")
-                    return@addOnSuccessListener
-                }
+            if (currentRequestId != requestId) {
+                recycleInput()
+                return@post
+            }
 
-                Log.d(TAG, "OCR完成: ${ocrTime}ms, 字数: ${ocrText.length}")
-                updateResultCard("\u2705 识别到 ${ocrText.length} 个字 (${ocrTime}ms)\n正在请求 AI...")
+            if (!ocrAvailable) {
+                recycleInput()
+                updateResultCard("❌ 文字识别引擎未就绪，请重启应用")
+                return@post
+            }
 
-                // DeepSeek API 配置
-                val baseUrl = "https://api.deepseek.com"
-                val apiKey = "sk-178ddf915bbc4c71b31f0e5ea66dd177"
-                val model = "deepseek-v4-flash"
+            // 使用 PaddleOCR 进行识别（同步，完成后 Bitmap 不再需要）
+            val result = paddleOcr.detectBitmap(scaled, drawModel = DrawModel.None)
 
-                var prompt = AppPreferences.getPrompt(this)
-                if (prompt.isBlank()) {
-                    prompt = "请解答或分析以下内容"
-                }
+            recycleInput()
 
-                var firstChunkTime = -1L
-                val t2 = System.currentTimeMillis()
+            if (currentRequestId != requestId) return@post
 
-                OpenAIApiService.analyzeTextStream(
-                    ocrText = ocrText,
-                    baseUrl = baseUrl,
-                    apiKey = apiKey,
-                    model = model,
-                    prompt = prompt,
-                    onChunk = { _, fullTextSoFar ->
+            if (result == null) {
+                updateResultCard("❌ 文字识别失败")
+                return@post
+            }
+
+            val ocrTime = System.currentTimeMillis() - t0
+            val ocrText = result.text
+
+            if (ocrText.isBlank()) {
+                updateResultCard("❌ 未识别到文字，请重新截图")
+                return@post
+            }
+
+            Log.d(TAG, "OCR完成: ${ocrTime}ms, 字数: ${ocrText.length}")
+            updateResultCard("✅ 识别到 ${ocrText.length} 个字 (${ocrTime}ms)\n正在请求 AI...")
+
+            // DeepSeek API 配置
+            val baseUrl = AppPreferences.getApiBaseUrl(this@ScreenCaptureService).ifBlank { "https://api.deepseek.com" }
+            val apiKey = AppPreferences.getApiKey(this@ScreenCaptureService).ifBlank { "sk-178ddf915bbc4c71b31f0e5ea66dd177" }
+            val model = AppPreferences.getApiModel(this@ScreenCaptureService).ifBlank { "deepseek-v4-flash" }
+
+            var prompt = AppPreferences.getPrompt(this@ScreenCaptureService)
+            if (prompt.isBlank()) {
+                prompt = "请解答或分析以下内容"
+            }
+
+            var firstChunkTime = -1L
+            val t2 = System.currentTimeMillis()
+
+            OpenAIApiService.analyzeTextStream(
+                ocrText = ocrText,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                prompt = prompt,
+                onChunk = { _, fullTextSoFar ->
+                    if (currentRequestId == requestId) {
                         if (firstChunkTime == -1L) {
                             firstChunkTime = System.currentTimeMillis() - t2
                             Log.d(TAG, "AI首字延迟: ${firstChunkTime}ms")
                         }
                         updateResultCard(fullTextSoFar)
-                    },
-                    onComplete = { fullText ->
+                    }
+                },
+                onComplete = { fullText ->
+                    if (currentRequestId == requestId) {
                         val totalTime = System.currentTimeMillis() - t0
                         Log.d(TAG, "总耗时: ${totalTime}ms (OCR: ${ocrTime}ms, AI: ${totalTime - ocrTime}ms)")
                         updateResultCard(fullText)
-                    },
-                    onError = { error ->
+                    }
+                },
+                onError = { error ->
+                    if (currentRequestId == requestId) {
                         updateResultCard("❌ 请求失败：$error")
                     }
-                )
-            }
-            .addOnFailureListener { e ->
-                if (scaled !== bitmap) scaled.recycle()
-                updateResultCard("❌ 文字识别失败：${e.message}")
-            }
+                }
+            )
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -705,8 +858,10 @@ class ScreenCaptureService : Service() {
     private fun releaseMediaProjection() {
         virtualDisplay?.release(); virtualDisplay = null
         imageReader?.close(); imageReader = null
+        mediaProjectionCallback?.let { mediaProjection?.unregisterCallback(it) }
+        mediaProjectionCallback = null
         mediaProjection?.stop(); mediaProjection = null
     }
 
-    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
+    private fun dpToPx(dp: Int): Int = (dp * displayDensity).toInt()
 }

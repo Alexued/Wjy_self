@@ -7,7 +7,10 @@ import android.view.View
 
 /**
  * 全屏蒙层 + 手指拖拽画矩形框选截图区域
- * 松手后回调选中的 Rect（屏幕坐标）
+ * 支持：
+ *  - 首次拖拽创建选区
+ *  - 选中后拖拽整体移动
+ *  - 选中后通过 8 个手柄点调整大小
  */
 class AreaSelectionOverlay(
     context: Context,
@@ -59,6 +62,9 @@ class AreaSelectionOverlay(
         style = Paint.Style.FILL
         isAntiAlias = true
     }
+
+    private val cancelPaint = Paint(confirmPaint).apply { color = Color.parseColor("#555555") }
+
     private val confirmTextPaint = Paint().apply {
         color = Color.WHITE
         textSize = 36f
@@ -66,132 +72,212 @@ class AreaSelectionOverlay(
         isAntiAlias = true
     }
 
-    private var startX = 0f
-    private var startY = 0f
-    private var endX = 0f
-    private var endY = 0f
-    private var isDrawing = false
+    // 手柄圆点画笔
+    private val handlePaint = Paint().apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
+    private var selectionRect = RectF()
+    private var lastX = 0f
+    private var lastY = 0f
+    
+    private enum class TouchMode { NONE, CREATE, MOVE, RESIZE_L, RESIZE_T, RESIZE_R, RESIZE_B, RESIZE_TL, RESIZE_TR, RESIZE_BL, RESIZE_BR }
+    private var currentMode = TouchMode.NONE
     private var hasSelection = false
 
-    // 确认/取消按钮的 RectF
     private var confirmBtnRect = RectF()
     private var cancelBtnRect = RectF()
 
+    private val TOUCH_THRESHOLD = 50f // 触控热区大小
+    private val HANDLE_RADIUS = 12f   // 视觉手柄圆点大小
+
     init {
-        setLayerType(LAYER_TYPE_SOFTWARE, null) // PorterDuff.Mode.CLEAR 需要
+        setLayerType(LAYER_TYPE_SOFTWARE, null) 
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        val x = event.x
+        val y = event.y
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // 如果已有选区，检查是否点击了确认/取消按钮
+                // 1. 优先检查按钮点击
                 if (hasSelection) {
-                    if (confirmBtnRect.contains(event.x, event.y)) {
+                    if (confirmBtnRect.contains(x, y)) {
                         deliverResult()
                         return true
                     }
-                    if (cancelBtnRect.contains(event.x, event.y)) {
+                    if (cancelBtnRect.contains(x, y)) {
                         onCancelled()
                         return true
                     }
                 }
-                // 开始新的框选
-                startX = event.x
-                startY = event.y
-                endX = event.x
-                endY = event.y
-                isDrawing = true
-                hasSelection = false
+
+                // 2. 检查是调整已有选区还是新建
+                currentMode = getTouchMode(x, y)
+                lastX = x
+                lastY = y
+
+                if (currentMode == TouchMode.NONE) {
+                    selectionRect.set(x, y, x, y)
+                    currentMode = TouchMode.CREATE
+                    hasSelection = false
+                }
                 invalidate()
             }
             MotionEvent.ACTION_MOVE -> {
-                if (isDrawing) {
-                    endX = event.x
-                    endY = event.y
-                    invalidate()
+                val dx = x - lastX
+                val dy = y - lastY
+                
+                when (currentMode) {
+                    TouchMode.CREATE -> {
+                        selectionRect.right = x
+                        selectionRect.bottom = y
+                    }
+                    TouchMode.MOVE -> {
+                        selectionRect.offset(dx, dy)
+                    }
+                    TouchMode.RESIZE_L -> selectionRect.left += dx
+                    TouchMode.RESIZE_T -> selectionRect.top += dy
+                    TouchMode.RESIZE_R -> selectionRect.right += dx
+                    TouchMode.RESIZE_B -> selectionRect.bottom += dy
+                    TouchMode.RESIZE_TL -> { selectionRect.left += dx; selectionRect.top += dy }
+                    TouchMode.RESIZE_TR -> { selectionRect.right += dx; selectionRect.top += dy }
+                    TouchMode.RESIZE_BL -> { selectionRect.left += dx; selectionRect.bottom += dy }
+                    TouchMode.RESIZE_BR -> { selectionRect.right += dx; selectionRect.bottom += dy }
+                    else -> {}
                 }
+                
+                lastX = x
+                lastY = y
+                invalidate()
             }
             MotionEvent.ACTION_UP -> {
-                if (isDrawing) {
-                    endX = event.x
-                    endY = event.y
-                    isDrawing = false
-                    // 如果框选太小（< 30px），视为误触
-                    val selRect = getSelectionRect()
-                    if (selRect.width() > 30 && selRect.height() > 30) {
-                        hasSelection = true
-                    }
-                    invalidate()
+                normalizeRect()
+                if (selectionRect.width() > 30 && selectionRect.height() > 30) {
+                    hasSelection = true
+                } else {
+                    hasSelection = false
                 }
+                currentMode = TouchMode.NONE
+                invalidate()
             }
         }
         return true
     }
 
+    private fun getTouchMode(x: Float, y: Float): TouchMode {
+        if (!hasSelection) return TouchMode.NONE
+
+        val r = selectionRect
+        // 四角优先级最高
+        if (isNear(x, r.left, y, r.top)) return TouchMode.RESIZE_TL
+        if (isNear(x, r.right, y, r.top)) return TouchMode.RESIZE_TR
+        if (isNear(x, r.left, y, r.bottom)) return TouchMode.RESIZE_BL
+        if (isNear(x, r.right, y, r.bottom)) return TouchMode.RESIZE_BR
+        
+        // 四边
+        if (Math.abs(x - r.left) < TOUCH_THRESHOLD && y > r.top && y < r.bottom) return TouchMode.RESIZE_L
+        if (Math.abs(x - r.right) < TOUCH_THRESHOLD && y > r.top && y < r.bottom) return TouchMode.RESIZE_R
+        if (Math.abs(y - r.top) < TOUCH_THRESHOLD && x > r.left && x < r.right) return TouchMode.RESIZE_T
+        if (Math.abs(y - r.bottom) < TOUCH_THRESHOLD && x > r.left && x < r.right) return TouchMode.RESIZE_B
+        
+        // 内部移动
+        if (r.contains(x, y)) return TouchMode.MOVE
+        
+        return TouchMode.NONE
+    }
+
+    private fun isNear(x1: Float, x2: Float, y1: Float, y2: Float): Boolean {
+        val dx = x1 - x2
+        val dy = y1 - y2
+        return dx * dx + dy * dy < TOUCH_THRESHOLD * TOUCH_THRESHOLD
+    }
+
+    private fun normalizeRect() {
+        val l = minOf(selectionRect.left, selectionRect.right).coerceAtLeast(0f)
+        val t = minOf(selectionRect.top, selectionRect.bottom).coerceAtLeast(0f)
+        val r = maxOf(selectionRect.left, selectionRect.right).coerceAtMost(width.toFloat())
+        val b = maxOf(selectionRect.top, selectionRect.bottom).coerceAtMost(height.toFloat())
+        selectionRect.set(l, t, r, b)
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // 整个屏幕蒙层
+        // 1. 全屏半透明蒙层
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
 
-        if (isDrawing || hasSelection) {
-            val rect = getSelectionRectF()
-            // 清除选区内的蒙层（使选区透明，看到底下内容）
-            canvas.drawRect(rect, clearPaint)
-            // 画虚线边框
-            canvas.drawRect(rect, borderPaint)
+        if (hasSelection || currentMode != TouchMode.NONE) {
+            // 2. 选区挖洞
+            canvas.drawRect(selectionRect, clearPaint)
+            // 3. 虚线边框
+            canvas.drawRect(selectionRect, borderPaint)
 
-            // 显示尺寸标注
-            val sizeText = "${rect.width().toInt()} × ${rect.height().toInt()}"
-            val ty = if (rect.top > 50) rect.top - 12f else rect.bottom + 40f
-            canvas.drawText(sizeText, rect.centerX(), ty, sizePaint)
+            // 4. 画调节手柄
+            if (hasSelection && currentMode == TouchMode.NONE) {
+                drawHandles(canvas)
+            }
+
+            // 5. 尺寸标注
+            val sizeText = "${selectionRect.width().toInt()} × ${selectionRect.height().toInt()}"
+            val ty = if (selectionRect.top > 80) selectionRect.top - 20f else selectionRect.bottom + 50f
+            canvas.drawText(sizeText, selectionRect.centerX(), ty, sizePaint)
         }
 
-        if (hasSelection) {
-            // 画确认和取消按钮（选区下方）
-            val rect = getSelectionRectF()
-            val btnW = 160f
-            val btnH = 56f
-            val gap = 24f
-            val btnY = (rect.bottom + 24f).coerceAtMost(height - btnH - 16f)
-
-            // 确认
-            confirmBtnRect = RectF(
-                rect.centerX() - btnW - gap / 2, btnY,
-                rect.centerX() - gap / 2, btnY + btnH
-            )
-            canvas.drawRoundRect(confirmBtnRect, 14f, 14f, confirmPaint)
-            canvas.drawText("✓ 确认", confirmBtnRect.centerX(), confirmBtnRect.centerY() + 12f, confirmTextPaint)
-
-            // 取消
-            val cancelPaint = Paint(confirmPaint).apply { color = Color.parseColor("#555555") }
-            cancelBtnRect = RectF(
-                rect.centerX() + gap / 2, btnY,
-                rect.centerX() + btnW + gap / 2, btnY + btnH
-            )
-            canvas.drawRoundRect(cancelBtnRect, 14f, 14f, cancelPaint)
-            canvas.drawText("✕ 取消", cancelBtnRect.centerX(), cancelBtnRect.centerY() + 12f, confirmTextPaint)
-        } else if (!isDrawing) {
-            // 没有选区时显示提示文字
+        // 6. 按钮或提示
+        if (hasSelection && currentMode == TouchMode.NONE) {
+            drawButtons(canvas)
+        } else if (!hasSelection && currentMode == TouchMode.NONE) {
             canvas.drawText("拖动手指框选截图区域", width / 2f, height / 2f, textPaint)
         }
     }
 
-    private fun getSelectionRect(): Rect {
-        val left   = minOf(startX, endX).toInt().coerceAtLeast(0)
-        val top    = minOf(startY, endY).toInt().coerceAtLeast(0)
-        val right  = maxOf(startX, endX).toInt().coerceAtMost(width)
-        val bottom = maxOf(startY, endY).toInt().coerceAtMost(height)
-        return Rect(left, top, right, bottom)
+    private fun drawHandles(canvas: Canvas) {
+        val r = selectionRect
+        // 四角
+        canvas.drawCircle(r.left, r.top, HANDLE_RADIUS, handlePaint)
+        canvas.drawCircle(r.right, r.top, HANDLE_RADIUS, handlePaint)
+        canvas.drawCircle(r.left, r.bottom, HANDLE_RADIUS, handlePaint)
+        canvas.drawCircle(r.right, r.bottom, HANDLE_RADIUS, handlePaint)
+        // 四边中点
+        canvas.drawCircle(r.centerX(), r.top, HANDLE_RADIUS, handlePaint)
+        canvas.drawCircle(r.centerX(), r.bottom, HANDLE_RADIUS, handlePaint)
+        canvas.drawCircle(r.left, r.centerY(), HANDLE_RADIUS, handlePaint)
+        canvas.drawCircle(r.right, r.centerY(), HANDLE_RADIUS, handlePaint)
     }
 
-    private fun getSelectionRectF(): RectF {
-        val r = getSelectionRect()
-        return RectF(r.left.toFloat(), r.top.toFloat(), r.right.toFloat(), r.bottom.toFloat())
+    private fun drawButtons(canvas: Canvas) {
+        val rect = selectionRect
+        val btnW = 180f
+        val btnH = 70f
+        val gap = 40f
+        val btnY = (rect.bottom + 40f).coerceAtMost(height - btnH - 30f)
+
+        // 确认按钮
+        confirmBtnRect = RectF(
+            rect.centerX() - btnW - gap / 2, btnY,
+            rect.centerX() - gap / 2, btnY + btnH
+        )
+        canvas.drawRoundRect(confirmBtnRect, 16f, 16f, confirmPaint)
+        canvas.drawText("✓ 确认", confirmBtnRect.centerX(), confirmBtnRect.centerY() + 14f, confirmTextPaint)
+
+        // 取消按钮
+        cancelBtnRect = RectF(
+            rect.centerX() + gap / 2, btnY,
+            rect.centerX() + btnW + gap / 2, btnY + btnH
+        )
+        canvas.drawRoundRect(cancelBtnRect, 16f, 16f, cancelPaint)
+        canvas.drawText("✕ 取消", cancelBtnRect.centerX(), cancelBtnRect.centerY() + 14f, confirmTextPaint)
     }
 
     private fun deliverResult() {
-        val rect = getSelectionRect()
+        val rect = Rect(
+            selectionRect.left.toInt(), selectionRect.top.toInt(),
+            selectionRect.right.toInt(), selectionRect.bottom.toInt()
+        )
         if (rect.width() > 30 && rect.height() > 30) {
             onAreaSelected(rect)
         } else {
