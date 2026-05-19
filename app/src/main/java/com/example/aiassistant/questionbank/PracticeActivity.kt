@@ -3,16 +3,11 @@ package com.example.aiassistant.questionbank
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Rect
-import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
-import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -31,7 +26,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
-import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
 
 class PracticeActivity : AppCompatActivity() {
@@ -256,7 +250,6 @@ try {
         lastSelectedText = ""
 
         val question = questions[index]
-        android.util.Log.d("PracticeActivity", "showQuestion[$index] stem=${question.stem.take(40)} stemHtml=${question.stemHtml.take(80)} titleImages=${question.titleImages.size} options=${question.options.size}")
 
         // 材料区域
         if (question.materialContent.isNotEmpty()) {
@@ -393,7 +386,6 @@ try {
         val finalUrl = if (url.contains("fontSize=") && url.contains("formulas")) {
             url.replace(Regex("fontSize=\\d+"), "fontSize=40")
         } else url
-        android.util.Log.d("PracticeActivity", "loadImage url=${finalUrl.take(100)} isStemImage=$isStemImage retry=$retryCount")
         val request = Request.Builder().url(finalUrl)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
             .header("Referer", "https://www.fenbike.cn/")
@@ -401,7 +393,6 @@ try {
         imageClient.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 if (destroyed) return
-                android.util.Log.e("PracticeActivity", "loadImage FAILED: ${e.message} url=${finalUrl.take(80)}")
                 if (retryCount < 2) {
                     handler.postDelayed({ loadImage(url, imageView, isStemImage, retryCount + 1) }, 1000L * (retryCount + 1))
                 } else {
@@ -419,9 +410,7 @@ try {
 
             override fun onResponse(call: Call, response: Response) {
                 if (destroyed) { response.close(); return }
-                android.util.Log.d("PracticeActivity", "loadImage response code=${response.code} url=${finalUrl.take(80)}")
                 if (!response.isSuccessful) {
-                    android.util.Log.e("PracticeActivity", "loadImage HTTP error: ${response.code}")
                     if (retryCount < 2) {
                         handler.postDelayed({ loadImage(url, imageView, isStemImage, retryCount + 1) }, 1000L * (retryCount + 1))
                     } else {
@@ -438,12 +427,9 @@ try {
                 }
 
                 val bytes = response.body?.bytes()
-                val header = bytes?.take(16)?.joinToString(" ") { "%02X".format(it) } ?: "null"
-                android.util.Log.d("PracticeActivity", "loadImage bytes=${bytes?.size ?: 0} contentType=${response.header("Content-Type")} header=[$header]")
                 if (bytes != null && bytes.isNotEmpty()) {
                     val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-                    android.util.Log.d("PracticeActivity", "loadImage decoded bounds: ${opts.outWidth}x${opts.outHeight}")
 
                     val maxWidth = if (isStemImage) resources.displayMetrics.widthPixels
                                    else resources.displayMetrics.widthPixels * 3 / 4
@@ -453,17 +439,14 @@ try {
                     while (opts.outWidth / sampleSize > maxWidth || opts.outHeight / sampleSize > maxHeight) {
                         sampleSize *= 2
                     }
-                    android.util.Log.d("PracticeActivity", "loadImage sampleSize=$sampleSize maxWidth=$maxWidth maxHeight=$maxHeight")
 
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
                         BitmapFactory.Options().apply { inSampleSize = sampleSize })
-                    android.util.Log.d("PracticeActivity", "loadImage bitmap=${bitmap?.width}x${bitmap?.height} isStemImage=$isStemImage")
 
                     runOnUiThread {
                         if (bitmap != null) {
                             imageView.setImageBitmap(bitmap)
                             imageView.visibility = View.VISIBLE
-                            android.util.Log.d("PracticeActivity", "loadImage set bitmap on ImageView, visibility=VISIBLE")
                         } else if (isStemImage) {
                             imageView.setImageResource(android.R.drawable.ic_menu_gallery)
                             imageView.visibility = View.VISIBLE

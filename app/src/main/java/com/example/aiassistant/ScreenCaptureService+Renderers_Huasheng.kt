@@ -965,12 +965,10 @@ internal fun ScreenCaptureService.renderLogicalLabels(card: View, json: JSONObje
 internal fun ScreenCaptureService.renderAnalysis(card: View, json: JSONObject, d: Float) {
     // AI 返回的解析字段名不固定，按优先级查找
     val rawAnalysis = json.opt("analysis") ?: json.opt("explanation") ?: json.opt("解析")
-    android.util.Log.d("ResultCard", "renderAnalysis: type=${rawAnalysis?.javaClass?.simpleName}, value=${rawAnalysis?.toString()?.take(200)}")
     val dp4 = (4*d).toInt(); val dp6 = (6*d).toInt(); val dp8 = (8*d).toInt(); val dp10 = (10*d).toInt()
 
     when (rawAnalysis) {
         is JSONObject -> {
-            android.util.Log.d("ResultCard", "renderAnalysis: entering JSONObject branch, keys=${rawAnalysis.keys().asSequence().toList()}")
             // 嵌套结构：每个空/段落独立渲染，通用处理所有 key-value
             for (blankKey in rawAnalysis.keys()) {
                 val blankValue = rawAnalysis.opt(blankKey) ?: continue
@@ -988,7 +986,6 @@ internal fun ScreenCaptureService.renderAnalysis(card: View, json: JSONObject, d
             }
         }
         is JSONArray -> {
-            android.util.Log.d("ResultCard", "renderAnalysis: entering JSONArray branch, length=${rawAnalysis.length()}")
             val analysisText = StringBuilder()
             for (i in 0 until rawAnalysis.length()) {
                 val item = rawAnalysis.opt(i)
@@ -1010,7 +1007,6 @@ internal fun ScreenCaptureService.renderAnalysis(card: View, json: JSONObject, d
             }
         }
         is String -> {
-            android.util.Log.d("ResultCard", "renderAnalysis: entering String branch, length=${rawAnalysis.length}")
             val analysis = cleanHtmlText(rawAnalysis)
             if (analysis.isEmpty()) return
             addDynamicSection(card, "解析", d)
@@ -1022,7 +1018,6 @@ internal fun ScreenCaptureService.renderAnalysis(card: View, json: JSONObject, d
             })
         }
         else -> {
-            android.util.Log.d("ResultCard", "renderAnalysis: entering else branch, rawAnalysis=$rawAnalysis")
             val analysis = cleanHtmlText(rawAnalysis?.toString() ?: "")
             if (analysis.isEmpty()) return
             addDynamicSection(card, "解析", d)
@@ -1034,7 +1029,6 @@ internal fun ScreenCaptureService.renderAnalysis(card: View, json: JSONObject, d
             })
         }
     }
-    android.util.Log.d("ResultCard", "renderAnalysis: done")
 }
 
 /** 通用 JSON 值渲染：自动处理 String / JSONObject / JSONArray */

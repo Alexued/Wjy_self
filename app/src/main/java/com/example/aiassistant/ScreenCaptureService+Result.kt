@@ -383,26 +383,15 @@ internal fun ScreenCaptureService.updateResultCard(text: String, isAiResponse: B
             if (isAiResponse) {
                 val json = tryParseJsonResponse(text)
                 if (json != null) {
-                    android.util.Log.d("ResultCard", "JSON fields: ${json.keys().asSequence().toList()}")
-                    android.util.Log.d("ResultCard", "lastBankMatch=${lastBankMatch?.id}, stem=${lastBankMatch?.stem?.take(30)}, answer=${lastBankMatch?.answer}, options=${lastBankMatch?.options?.size}")
                     clearDynamicSections(card)
                     try {
                         val type = detectSchemaType(json)
-                        android.util.Log.d("ResultCard", "Schema detected: $type, teacher: ${TeacherManager.activeTeacher.id}")
                         when (TeacherManager.activeTeacher.id) {
                             "huasheng" -> renderHuasheng(card, json, type)
                             else -> renderHuasheng(card, json, type)
                         }
                         showBankMatchTag(card)
-                        // 诊断：哪些区域可见
-                        val qVis = card.findViewById<View>(R.id.layout_question)?.visibility == View.VISIBLE
-                        val aVis = card.findViewById<View>(R.id.layout_answer)?.visibility == View.VISIBLE
-                        val oVis = card.findViewById<View>(R.id.layout_options_container)?.visibility == View.VISIBLE
-                        val tVis = card.findViewById<View>(R.id.layout_tags)?.visibility == View.VISIBLE
-                        val tvVis = card.findViewById<TextView>(R.id.tv_result)?.visibility == View.VISIBLE
-                        android.util.Log.d("ResultCard", "Render done: question=$qVis, answer=$aVis, options=$oVis, tags=$tVis, rawText=$tvVis")
                     } catch (e: Exception) {
-                        android.util.Log.e("ResultCard", "Render failed for type", e)
                         if (onRenderFail != null) {
                             onRenderFail()
                         } else {
@@ -413,7 +402,6 @@ internal fun ScreenCaptureService.updateResultCard(text: String, isAiResponse: B
                         }
                     }
                 } else {
-                    android.util.Log.d("ResultCard", "JSON parse failed, showing raw text. text(200)=${text.take(200)}")
                     if (onRenderFail != null) {
                         onRenderFail()
                     } else {
