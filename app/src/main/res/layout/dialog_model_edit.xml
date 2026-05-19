@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_dialog_title"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="添加模型" android:textSize="18sp" android:textStyle="bold"
+        android:textColor="@color/text_primary" android:layout_marginBottom="16dp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp" android:hint="模型名称"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_model_name" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="14sp"
+             />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp" android:hint="Base URL"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_model_url" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="14sp"
+            android:inputType="textUri" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp" android:hint="API Key"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+        app:passwordToggleEnabled="true">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_model_key" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="14sp"
+            android:inputType="textPassword" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp" android:hint="模型ID"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_model_id" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="14sp"
+             />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="默认开启思考模式"
+            android:textSize="14sp" android:textColor="@color/text_primary" />
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/sw_model_thinking" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+</LinearLayout>

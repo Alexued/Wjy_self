@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="40dp"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_selection_bar"
+    android:elevation="8dp"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/btn_copy"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:text="复制"
+        android:textSize="13sp"
+        android:textColor="#333333"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="16dp"
+        android:background="#DDDDDD" />
+
+    <TextView
+        android:id="@+id/btn_qa"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:text="问答"
+        android:textSize="13sp"
+        android:textColor="#333333"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="16dp"
+        android:background="#DDDDDD" />
+
+    <TextView
+        android:id="@+id/btn_search"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:text="搜索"
+        android:textSize="13sp"
+        android:textColor="#333333"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="?android:attr/selectableItemBackground" />
+
+</LinearLayout>

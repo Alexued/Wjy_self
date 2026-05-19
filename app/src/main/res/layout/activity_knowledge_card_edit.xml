@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:fitsSystemWindows="true">
+
+    <!-- 顶部栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="8dp"
+        android:elevation="2dp">
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:text="←"
+            android:textSize="20sp"
+            android:textColor="#374151"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+        android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#1F2937" />
+
+        <TextView
+            android:id="@+id/btn_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="保存"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:background="@drawable/bg_tag_blue" />
+
+        <TextView
+            android:id="@+id/btn_delete"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="删除"
+            android:textColor="#EF4444"
+            android:textSize="14sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:layout_marginStart="8dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E5E7EB" />
+
+    <!-- 表单 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- 标题 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="标题"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#374151"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/et_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="输入卡片标题"
+                android:textSize="15sp"
+                android:padding="12dp"
+                android:background="@drawable/bg_question_box"
+                android:inputType="text"
+                android:maxLines="2"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 内容 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="内容"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#374151"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/et_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="输入卡片内容&#10;支持多行文本"
+                android:textSize="14sp"
+                android:padding="12dp"
+                android:background="@drawable/bg_question_box"
+                android:inputType="textMultiLine"
+                android:minLines="6"
+                android:gravity="top"
+                android:lineSpacingMultiplier="1.3"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 标签 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="标签（可选，逗号分隔）"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#374151"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/et_tags"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="如：成语,高频,易错"
+                android:textSize="14sp"
+                android:padding="12dp"
+                android:background="@drawable/bg_question_box"
+                android:inputType="text"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 批量添加提示 -->
+            <TextView
+                android:id="@+id/tv_batch_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="💡 批量添加：每行一条，格式为「标题|内容|标签」"
+                android:textSize="12sp"
+                android:textColor="#9CA3AF"
+                android:lineSpacingMultiplier="1.3"
+                android:visibility="gone" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

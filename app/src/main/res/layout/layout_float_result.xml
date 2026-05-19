@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 截图后 AI 解析结果的悬浮卡片 -->
-<FrameLayout
+<!-- 截图后 AI 解析结果的悬浮卡片 — 白底清爽风格 -->
+<com.example.aiassistant.ResizeContainer
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/float_result_root"
     android:layout_width="match_parent"
@@ -13,22 +13,22 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_float_card"
         android:orientation="vertical"
-        android:elevation="8dp">
+        android:elevation="12dp">
 
         <!-- 标题栏（拖动手柄） -->
         <LinearLayout
             android:id="@+id/layout_result_header"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="50dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="@color/card_header_bg"
+            android:background="@drawable/bg_card_header"
             android:paddingStart="16dp"
             android:paddingEnd="8dp">
 
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
                 android:src="@drawable/ic_ai_ball"
                 android:contentDescription="AI" />
 
@@ -36,11 +36,35 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="10dp"
                 android:text="@string/card_title"
                 android:textColor="@color/card_title_text"
-                android:textSize="14sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
+
+            <!-- 编辑按钮 -->
+            <TextView
+                android:id="@+id/btn_edit_card"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:text="✎"
+                android:textColor="@color/primary"
+                android:textSize="16sp"
+                android:gravity="center"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="编辑" />
+
+            <!-- 导出按钮 -->
+            <TextView
+                android:id="@+id/btn_export_card"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:text="📤"
+                android:textColor="@color/primary"
+                android:textSize="14sp"
+                android:gravity="center"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="导出图片" />
 
             <!-- 关闭按钮 -->
             <TextView
@@ -59,16 +83,32 @@
             android:layout_height="1dp"
             android:background="@color/card_divider" />
 
-        <!-- 加载中文字 -->
-        <TextView
-            android:id="@+id/tv_loading"
+        <!-- 加载中（转圈圈 + 文字） -->
+        <LinearLayout
+            android:id="@+id/layout_loading"
             android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:text="@string/card_loading"
-            android:textColor="@color/card_loading_text"
-            android:textSize="14sp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
             android:gravity="center"
-            android:visibility="visible" />
+            android:visibility="visible">
+
+            <ProgressBar
+                android:id="@+id/pb_loading"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                style="?android:attr/progressBarStyle"
+                android:indeterminateTint="@color/primary" />
+
+            <TextView
+                android:id="@+id/tv_loading"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/card_loading"
+                android:textColor="@color/card_loading_text"
+                android:textSize="13sp" />
+        </LinearLayout>
 
         <!-- 结果文字（可滚动） -->
         <RelativeLayout
@@ -82,32 +122,175 @@
                 android:id="@+id/scroll_result"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:padding="16dp"
-                android:clipToPadding="false">
+                android:padding="14dp"
+                android:clipToPadding="false"
+                android:scrollbars="none"
+                android:overScrollMode="never"
+                android:fadingEdge="vertical"
+                android:fadingEdgeLength="24dp">
 
-                <TextView
-                    android:id="@+id/tv_result"
+                <com.example.aiassistant.ZoomableLayout
+                    android:id="@+id/zoomable_content"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textColor="@color/card_result_text"
-                    android:textSize="14sp"
-                    android:lineSpacingMultiplier="1.4"
-                    android:textIsSelectable="true" />
-            </ScrollView>
+                    android:layout_height="wrap_content">
 
-            <!-- 调整大小的手柄 (右下角) -->
-            <ImageView
-                android:id="@+id/btn_resize_handle"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_alignParentEnd="true"
-                android:layout_alignParentBottom="true"
-                android:src="@android:drawable/ic_menu_crop"
-                android:padding="4dp"
-                android:alpha="0.5"
-                android:contentDescription="Resize" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                    <!-- 题型标签行 -->
+                    <LinearLayout
+                        android:id="@+id/layout_tags"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="10dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/tv_tag_question_type"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_tag_blue"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="4dp"
+                            android:textColor="#2563EB"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:id="@+id/tv_tag_passage_type"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_tag_blue"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="4dp"
+                            android:textColor="#2563EB"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- 题目框 -->
+                    <LinearLayout
+                        android:id="@+id/layout_question"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_question_box"
+                        android:padding="14dp"
+                        android:layout_marginBottom="12dp"
+                        android:visibility="gone">
+                        
+                        <TextView
+                            android:id="@+id/tv_question"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textColor="#374151"
+                            android:textSize="13.5sp"
+                            android:lineSpacingMultiplier="1.4"
+                            android:textIsSelectable="true"/>
+                    </LinearLayout>
+
+                    <!-- 答案区 -->
+                    <LinearLayout
+                        android:id="@+id/layout_answer"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="14dp"
+                        android:visibility="gone"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_answer_badge">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="✓"
+                            android:textColor="#10B981"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:layout_marginEnd="8dp"/>
+
+                        <TextView
+                            android:id="@+id/tv_answer_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="正确答案"
+                            android:textColor="#6B7280"
+                            android:textSize="13sp"
+                            android:layout_marginEnd="8dp"/>
+
+                        <TextView
+                            android:id="@+id/tv_answer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#2563EB"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textIsSelectable="true"/>
+                    </LinearLayout>
+
+                    <!-- 选项解析标题 -->
+                    <TextView
+                        android:id="@+id/tv_options_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="📋 选项解析"
+                        android:textColor="#1F2937"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="10dp"
+                        android:visibility="gone"/>
+
+                    <!-- 动态选项卡片容器 -->
+                    <LinearLayout
+                        android:id="@+id/layout_options_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"/>
+
+                    <!-- 逻辑标签标题 -->
+                    <TextView
+                        android:id="@+id/tv_logical_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🏷️ 逻辑结构"
+                        android:textColor="#1F2937"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginBottom="10dp"
+                        android:visibility="gone"/>
+
+                    <!-- 动态逻辑标签容器 -->
+                    <LinearLayout
+                        android:id="@+id/layout_logical_labels"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_logical_labels"
+                        android:padding="12dp"
+                        android:visibility="gone"/>
+
+                    <!-- 兜底/流式原始文本 -->
+                    <TextView
+                        android:id="@+id/tv_result"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/card_result_text"
+                        android:textSize="14sp"
+                        android:lineSpacingMultiplier="1.4"
+                        android:textIsSelectable="true" />
+                    </LinearLayout>
+                </com.example.aiassistant.ZoomableLayout>
+            </ScrollView>
         </RelativeLayout>
 
     </LinearLayout>
-</FrameLayout>
+</com.example.aiassistant.ResizeContainer>

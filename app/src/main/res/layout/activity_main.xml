@@ -173,6 +173,309 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- ===== OCR 识别方式卡片 ===== -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="#FFFFFF">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="OCR 识别方式"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="12dp" />
+
+                <RadioGroup
+                    android:id="@+id/rg_ocr_mode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rb_ocr_local"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="本地 OCR（PaddleOCR，离线识别）"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_primary"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <RadioButton
+                        android:id="@+id/rb_ocr_cloud"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="云端 OCR（Paddle 布局解析，联网识别）"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_primary"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp" />
+                </RadioGroup>
+
+                <!-- 云端 OCR 配置区域（默认隐藏） -->
+                <LinearLayout
+                    android:id="@+id/layout_cloud_ocr_config"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone">
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#EEEEEE"
+                        android:layout_marginBottom="12dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="云端模型"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="8dp" />
+
+                    <RadioGroup
+                        android:id="@+id/rg_cloud_ocr_type"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/rb_ocr_layout"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="布局解析（可识别数字、表格）"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:layout_marginBottom="4dp" />
+
+                        <RadioButton
+                            android:id="@+id/rb_ocr_text"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="文字识别（轻量快速）"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp" />
+                    </RadioGroup>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#EEEEEE"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="12dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="API URL"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/et_cloud_ocr_url"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="https://...layout-parsing"
+                            android:inputType="textUri"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="API Token"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="4dp" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="4dp"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
+                        app:passwordToggleEnabled="true">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/et_cloud_ocr_token"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="输入 API Token"
+                            android:inputType="textPassword"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ===== 显示设置卡片 ===== -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="#FFFFFF">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="默认全屏显示"
+                            android:textSize="17sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="AI 答案卡片默认使用全屏模式"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switch_default_fullscreen"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#EEEEEE"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="16dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="静默搜题"
+                            android:textSize="17sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="后台处理，完成后再点击查看答案"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switch_silent_search"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#EEEEEE"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="16dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="悬浮球大小"
+                            android:textSize="15sp"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tv_ball_size_val"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="60dp"
+                            android:textSize="14sp"
+                            android:textColor="@color/primary"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <SeekBar
+                        android:id="@+id/sb_ball_size"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:max="120"
+                        android:progress="60"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- ===== API 配置卡片 ===== -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
@@ -316,9 +619,138 @@
                         android:hint="请输入你的提示词..."
                         android:inputType="textMultiLine"
                         android:minLines="3"
-                        android:maxLines="6"
+                        android:maxLines="10"
+                        android:scrollbars="vertical"
+                        android:fadeScrollbars="false"
                         android:gravity="top"
                         android:textSize="14sp" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- ===== 多轮推理策略卡片 ===== -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="#FFFFFF">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="多轮推理策略"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="两轮独立思考 + 第三轮验证，提高答案准确率"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginBottom="12dp" />
+
+                <RadioGroup
+                    android:id="@+id/rg_multi_pass_strategy"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rb_strategy_single"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="单轮推理（仅用默认提示词，快速响应）"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:layout_marginBottom="4dp" />
+
+                    <RadioButton
+                        android:id="@+id/rb_strategy_standard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="标准双审（两轮独立推理，第三轮验证）"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:layout_marginBottom="4dp" />
+
+                    <RadioButton
+                        android:id="@+id/rb_strategy_self_check"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="自检双审（第二轮自我纠错，第三轮验证）"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:layout_marginBottom="4dp" />
+
+                    <RadioButton
+                        android:id="@+id/rb_strategy_custom_r2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="自定义第二轮提示词（完全自主编写R2 prompt）"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp" />
+                </RadioGroup>
+
+                <!-- 自定义 R2 prompt（策略4可见） -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/layout_custom_r2_prompt"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone"
+                    android:hint="自定义第二轮 System Prompt"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_custom_r2_prompt"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minLines="4"
+                        android:maxLines="8"
+                        android:inputType="textMultiLine"
+                        android:gravity="top"
+                        android:textSize="13sp"
+                        android:hint="在此编写第二轮推理的完整 System Prompt..." />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- 自检指令（策略2可见） -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/layout_self_check_instruction"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone"
+                    android:hint="自定义自检指令（将追加到默认提示词末尾）"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/et_self_check_instruction"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minLines="3"
+                        android:maxLines="6"
+                        android:inputType="textMultiLine"
+                        android:gravity="top"
+                        android:textSize="13sp" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>

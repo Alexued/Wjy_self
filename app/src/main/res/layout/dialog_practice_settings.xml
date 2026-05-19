@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="练习设置"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:layout_marginBottom="20dp" />
+
+    <!-- 每组题数 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="每组题数"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/chip_group_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        app:singleSelection="true">
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chip_10"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="10题" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chip_15"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="15题"
+            android:checked="true" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chip_20"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="20题" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chip_30"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="30题" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chip_50"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="50题" />
+    </com.google.android.material.chip.ChipGroup>
+
+    <!-- 正确率范围 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="正确率范围"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/tv_rate_range"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="0% - 100%"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/primary"
+        android:layout_marginBottom="8dp" />
+
+    <com.google.android.material.slider.RangeSlider
+        android:id="@+id/slider_rate_range"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:valueFrom="0"
+        android:valueTo="100"
+        android:stepSize="5"
+        app:values="@array/default_rate_range"
+        app:trackColorActive="@color/primary"
+        app:trackColorInactive="#E0E0E0"
+        app:thumbColor="@color/primary"
+        app:labelBehavior="floating"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 正确率说明 -->
+    <TextView
+        android:id="@+id/tv_rate_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="正确率越低 = 题目越难"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 快捷选择 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_rate_all"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="全部"
+            android:textSize="12sp"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_marginEnd="4dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_rate_hard"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="难题(&lt;40%)"
+            android:textSize="12sp"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_marginEnd="4dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_rate_medium"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="中等(40-70%)"
+            android:textSize="12sp"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_marginEnd="4dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_rate_easy"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="简单(&gt;70%)"
+            android:textSize="12sp"
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
+    </LinearLayout>
+
+    <!-- 题目数量提示 -->
+    <TextView
+        android:id="@+id/tv_question_count_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="该模块共 0 题"
+        android:textSize="13sp"
+        android:textColor="@color/primary" />
+
+</LinearLayout>

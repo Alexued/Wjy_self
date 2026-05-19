@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="12dp"
+    android:background="?android:attr/selectableItemBackground"
+    android:layout_marginBottom="4dp">
+
+    <!-- 圆点指示器 -->
+    <View
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:background="@drawable/bg_dot_indicator"
+        android:layout_marginEnd="12dp" />
+
+    <!-- 子模块名称 -->
+    <TextView
+        android:id="@+id/tv_child_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary" />
+
+    <!-- 题目数量 -->
+    <TextView
+        android:id="@+id/tv_child_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary" />
+
+    <!-- 箭头 -->
+    <ImageView
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:src="@android:drawable/ic_media_play"
+        android:layout_marginStart="8dp"
+        android:contentDescription="进入" />
+
+</LinearLayout>

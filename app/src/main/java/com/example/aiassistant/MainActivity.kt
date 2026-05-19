@@ -2,227 +2,263 @@ package com.example.aiassistant
 
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
-import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.view.View
-import android.widget.LinearLayout
-import android.widget.RadioGroup
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
+import androidx.fragment.app.Fragment
+import com.example.aiassistant.fragment.AiModelFragment
+import com.example.aiassistant.fragment.HomeFragment
+import com.example.aiassistant.fragment.OcrModelFragment
+import com.example.aiassistant.fragment.PromptManageFragment
+import com.example.aiassistant.knowledge.KnowledgeCardFragment
+import com.example.aiassistant.knowledge.KnowledgeCardManager
+import com.example.aiassistant.plan.PlanFragment
+import com.example.aiassistant.plan.PlanManager
+import com.example.aiassistant.pomodoro.PomodoroFragment
+import com.example.aiassistant.pomodoro.PomodoroManager
+import com.example.aiassistant.questionbank.QuestionBankFragment
+import com.example.aiassistant.questionbank.QuestionBankManager
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.google.android.material.textfield.TextInputEditText
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
 
-    private lateinit var mediaProjectionManager: MediaProjectionManager
+    internal lateinit var mediaProjectionManager: MediaProjectionManager
 
-    // ── UI 控件 ─────────────────────────────────────────────────────────
-    private lateinit var switchFloatBall: SwitchMaterial
-    private lateinit var tvFloatStatus: TextView
-    private lateinit var etBaseUrl: TextInputEditText
-    private lateinit var etApiKey: TextInputEditText
-    private lateinit var etModel: TextInputEditText
-    private lateinit var etPrompt: TextInputEditText
-    private lateinit var btnSave: MaterialButton
-
-    // ── 截图模式 ────────────────────────────────────────────────────────
-    private lateinit var rgCaptureMode: RadioGroup
-    private lateinit var layoutFixedInfo: LinearLayout
-    private lateinit var tvFixedStatus: TextView
-    private lateinit var btnClearFixed: MaterialButton
+    private var homeFragment: HomeFragment? = null
+    private var aiModelFragment: AiModelFragment? = null
+    private var ocrModelFragment: OcrModelFragment? = null
+    private var promptFragment: PromptManageFragment? = null
+    private var knowledgeFragment: KnowledgeCardFragment? = null
+    private var planFragment: PlanFragment? = null
+    private var pomodoroFragment: PomodoroFragment? = null
+    private var questionBankFragment: QuestionBankFragment? = null
+    private var activeFragment: Fragment? = null
 
     /** 悬浮窗权限 → 返回后继续录屏权限 */
-    private val overlayPermissionLauncher: ActivityResultLauncher<Intent> =
+    internal val overlayPermissionLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             if (Settings.canDrawOverlays(this)) {
                 requestScreenCapturePermission()
             } else {
                 Toast.makeText(this, "需要悬浮窗权限才能开启悬浮球", Toast.LENGTH_SHORT).show()
-                switchFloatBall.isChecked = false
-                updateFloatStatus(false)
+                homeFragment?.resetFloatSwitch()
             }
         }
 
     /** 录屏授权 → 成功后启动服务 */
-    private val screenCaptureLauncher: ActivityResultLauncher<Intent> =
+    internal val screenCaptureLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK && result.data != null) {
                 startScreenCaptureService(result.resultCode, result.data!!)
-                updateFloatStatus(true)
+                homeFragment?.updateFloatServiceStatus(true)
             } else {
                 Toast.makeText(this, "需要录屏权限才能使用截图功能", Toast.LENGTH_SHORT).show()
-                switchFloatBall.isChecked = false
-                updateFloatStatus(false)
+                homeFragment?.resetFloatSwitch()
             }
         }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Lifecycle
-    // ─────────────────────────────────────────────────────────────────────
+    // ── Lifecycle ──────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_main_new)
 
-        mediaProjectionManager =
-            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
-        bindViews()
-        loadSavedConfig()
-        setupListeners()
+        // 用户主动打开应用时，清除 OCR 崩溃标记（允许重试本地 OCR）
+        getSharedPreferences("ai_assistant_prefs", MODE_PRIVATE)
+            .edit().putBoolean("ocr_last_call_crashed", false).apply()
+
+        // 初始化老师系统
+        TeacherManager.init(this)
+        // 初始化 AI 模型和策略
+        ModelManager.init(this)
+        StrategyManager.init(this)
+        // 初始化题库（后台加载）
+        QuestionBankManager.init(this)
+        // 初始化知识卡片
+        KnowledgeCardManager.init(this)
+        // 初始化计划表
+        PlanManager.init(this)
+        // 初始化番茄钟
+        PomodoroManager.init(this)
+
+        setupBottomNav()
+
+        // 处理启动 Intent（通知点击 / 悬浮球跳转）
+        if (intent != null) handleIntent(intent)
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 初始化
-    // ─────────────────────────────────────────────────────────────────────
-
-    private fun bindViews() {
-        switchFloatBall = findViewById(R.id.switch_float_ball)
-        tvFloatStatus   = findViewById(R.id.tv_float_status)
-        etBaseUrl       = findViewById(R.id.et_base_url)
-        etApiKey        = findViewById(R.id.et_api_key)
-        etModel         = findViewById(R.id.et_model)
-        etPrompt        = findViewById(R.id.et_prompt)
-        btnSave         = findViewById(R.id.btn_save)
-
-        // 截图模式
-        rgCaptureMode   = findViewById(R.id.rg_capture_mode)
-        layoutFixedInfo = findViewById(R.id.layout_fixed_info)
-        tvFixedStatus   = findViewById(R.id.tv_fixed_status)
-        btnClearFixed   = findViewById(R.id.btn_clear_fixed)
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
     }
 
-    /** 从 SharedPreferences 加载已保存的配置 */
-    private fun loadSavedConfig() {
-        etBaseUrl.setText(AppPreferences.getApiBaseUrl(this))
-        etApiKey.setText(AppPreferences.getApiKey(this))
-        etModel.setText(AppPreferences.getApiModel(this))
-        etPrompt.setText(AppPreferences.getPrompt(this))
-
-        val floatEnabled = AppPreferences.isFloatEnabled(this)
-        switchFloatBall.isChecked = floatEnabled
-        updateFloatStatus(floatEnabled)
-
-        // 截图模式
-        val mode = AppPreferences.getCaptureMode(this)
-        if (mode == AppPreferences.MODE_FIXED_AREA) {
-            rgCaptureMode.check(R.id.rb_fixed_area)
-        } else {
-            rgCaptureMode.check(R.id.rb_custom_area)
+    private fun handleIntent(intent: Intent) {
+        if (intent.getBooleanExtra(ScreenCaptureService.EXTRA_NEED_RESTART, false) == true) {
+            startPermissionFlow()
         }
-        updateFixedAreaUI(mode)
-    }
-
-    private fun setupListeners() {
-        // ── 悬浮球开关 ──────────────────────────────────────────────────
-        switchFloatBall.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
+        // 处理从悬浮球跳转过来的重新授权请求（锁屏后 MediaProjection 失效）
+        if (intent.getBooleanExtra("request_media_projection", false)) {
+            // 服务仍在运行（SPECIAL_USE 类型），只需重新获取 MediaProjection
+            if (Settings.canDrawOverlays(this)) {
+                requestScreenCapturePermission()
+            } else {
                 startPermissionFlow()
-            } else {
-                stopScreenCaptureService()
-                AppPreferences.setFloatEnabled(this, false)
-                updateFloatStatus(false)
             }
-        }
-
-        // ── 截图模式切换 ────────────────────────────────────────────────
-        rgCaptureMode.setOnCheckedChangeListener { _, checkedId ->
-            val mode = if (checkedId == R.id.rb_fixed_area)
-                AppPreferences.MODE_FIXED_AREA else AppPreferences.MODE_CUSTOM_AREA
-            AppPreferences.setCaptureMode(this, mode)
-            updateFixedAreaUI(mode)
-        }
-
-        // ── 清除固定区域（重新选择） ────────────────────────────────────
-        btnClearFixed.setOnClickListener {
-            AppPreferences.clearFixedRegion(this)
-            updateFixedAreaUI(AppPreferences.MODE_FIXED_AREA)
-            Toast.makeText(this, "已清除固定区域，下次截图时将重新选择", Toast.LENGTH_SHORT).show()
-        }
-
-        // ── 保存按钮 ────────────────────────────────────────────────────
-        btnSave.setOnClickListener {
-            saveConfig()
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 截图模式 UI
-    // ─────────────────────────────────────────────────────────────────────
+    // ── 底部导航 ──────────────────────────────────────────────────────
 
-    private fun updateFixedAreaUI(mode: Int) {
-        if (mode == AppPreferences.MODE_FIXED_AREA) {
-            layoutFixedInfo.visibility = View.VISIBLE
-            if (AppPreferences.isFixedRegionSet(this)) {
-                val r = AppPreferences.getFixedRegion(this)
-                tvFixedStatus.text = "已设定区域：${r.width()}×${r.height()} @ (${r.left}, ${r.top})"
-                tvFixedStatus.setTextColor(getColor(R.color.primary))
-            } else {
-                tvFixedStatus.text = "尚未设定，下次点击悬浮球时将框选"
-                tvFixedStatus.setTextColor(getColor(R.color.text_secondary))
+    private fun setupBottomNav() {
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_nav)
+        bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> { showFragment(getOrCreateHomeFragment()); true }
+                R.id.nav_question_bank -> { showFragment(getOrCreateQuestionBankFragment()); true }
+                R.id.nav_knowledge -> { showFragment(getOrCreateKnowledgeFragment()); true }
+                R.id.nav_plan -> { showFragment(getOrCreatePlanFragment()); true }
+                R.id.nav_pomodoro -> { showFragment(getOrCreatePomodoroFragment()); true }
+                R.id.nav_ai_model -> { showFragment(getOrCreateAiModelFragment()); true }
+                else -> false
             }
+        }
+        // 默认选中主页
+        bottomNav.selectedItemId = R.id.nav_home
+    }
+
+    internal fun showFragment(fragment: Fragment) {
+        val transaction = supportFragmentManager.beginTransaction()
+
+        // 隐藏所有已添加的 fragment
+        for (f in supportFragmentManager.fragments) {
+            if (f != fragment) {
+                transaction.hide(f)
+            }
+        }
+
+        if (fragment.isAdded) {
+            transaction.show(fragment)
         } else {
-            layoutFixedInfo.visibility = View.GONE
+            transaction.add(R.id.fragment_container, fragment, fragmentTag(fragment))
         }
+        activeFragment = fragment
+        transaction.commit()
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 配置保存
-    // ─────────────────────────────────────────────────────────────────────
-
-    private fun saveConfig() {
-        val baseUrl = etBaseUrl.text?.toString()?.trim() ?: ""
-        val apiKey  = etApiKey.text?.toString()?.trim() ?: ""
-        val model   = etModel.text?.toString()?.trim() ?: ""
-        val prompt  = etPrompt.text?.toString()?.trim() ?: ""
-
-        AppPreferences.setApiBaseUrl(this, baseUrl)
-        AppPreferences.setApiKey(this, apiKey)
-        AppPreferences.setApiModel(this, model)
-        AppPreferences.setPrompt(this, prompt.ifBlank {
-            "请仔细分析这张截图的内容，给出详细的解析和学习建议。"
-        })
-
-        Toast.makeText(this, "配置已保存 ✓", Toast.LENGTH_SHORT).show()
+    private fun fragmentTag(f: Fragment): String = when (f) {
+        is HomeFragment -> "home"
+        is AiModelFragment -> "ai_model"
+        is OcrModelFragment -> "ocr_model"
+        is PromptManageFragment -> "prompt"
+        is KnowledgeCardFragment -> "knowledge"
+        is PlanFragment -> "plan"
+        is PomodoroFragment -> "pomodoro"
+        is QuestionBankFragment -> "question_bank"
+        else -> f.javaClass.simpleName
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 权限流程
-    // ─────────────────────────────────────────────────────────────────────
+    private fun getOrCreateHomeFragment(): Fragment {
+        if (homeFragment == null) {
+            homeFragment = supportFragmentManager.findFragmentByTag("home") as? HomeFragment ?: HomeFragment()
+        }
+        return homeFragment!!
+    }
 
-    /**
-     * 悬浮球开启流程：
-     * 1. 检查悬浮窗权限 → 2. 请求录屏权限 → 3. 启动服务
-     */
+    private fun getOrCreateAiModelFragment(): Fragment {
+        if (aiModelFragment == null) {
+            aiModelFragment = supportFragmentManager.findFragmentByTag("ai_model") as? AiModelFragment ?: AiModelFragment()
+        }
+        return aiModelFragment!!
+    }
+
+    private fun getOrCreateOcrModelFragment(): Fragment {
+        if (ocrModelFragment == null) {
+            ocrModelFragment = supportFragmentManager.findFragmentByTag("ocr_model") as? OcrModelFragment ?: OcrModelFragment()
+        }
+        return ocrModelFragment!!
+    }
+
+    internal fun getOrCreatePromptFragment(): Fragment {
+        if (promptFragment == null) {
+            promptFragment = supportFragmentManager.findFragmentByTag("prompt") as? PromptManageFragment ?: PromptManageFragment()
+        }
+        return promptFragment!!
+    }
+
+    private fun getOrCreateKnowledgeFragment(): Fragment {
+        if (knowledgeFragment == null) {
+            knowledgeFragment = supportFragmentManager.findFragmentByTag("knowledge") as? KnowledgeCardFragment ?: KnowledgeCardFragment()
+        }
+        return knowledgeFragment!!
+    }
+
+    private fun getOrCreatePlanFragment(): Fragment {
+        if (planFragment == null) {
+            planFragment = supportFragmentManager.findFragmentByTag("plan") as? PlanFragment ?: PlanFragment()
+        }
+        return planFragment!!
+    }
+
+    private fun getOrCreatePomodoroFragment(): Fragment {
+        if (pomodoroFragment == null) {
+            pomodoroFragment = supportFragmentManager.findFragmentByTag("pomodoro") as? PomodoroFragment ?: PomodoroFragment()
+        }
+        return pomodoroFragment!!
+    }
+
+    private fun getOrCreateQuestionBankFragment(): Fragment {
+        if (questionBankFragment == null) {
+            questionBankFragment = supportFragmentManager.findFragmentByTag("question_bank") as? QuestionBankFragment ?: QuestionBankFragment()
+        }
+        return questionBankFragment!!
+    }
+
+    // ── ServiceControlListener 实现 ───────────────────────────────────
+
+    override fun onStartServiceRequested() {
+        startPermissionFlow()
+    }
+
+    override fun onStopServiceRequested() {
+        stopScreenCaptureService()
+    }
+
+    override fun isServiceRunning(): Boolean =
+        AppPreferences.isFloatEnabled(this) &&
+        com.example.aiassistant.ScreenCaptureService::class.java.let { cls ->
+            val manager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+            @Suppress("DEPRECATION")
+            manager.getRunningServices(Integer.MAX_VALUE)
+                ?.any { it.service.className == cls.name } == true
+        }
+
+    // ── 权限流程 ──────────────────────────────────────────────────────
+
     private fun startPermissionFlow() {
         if (!Settings.canDrawOverlays(this)) {
-            requestOverlayPermission()
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:$packageName")
+            )
+            overlayPermissionLauncher.launch(intent)
         } else {
             requestScreenCapturePermission()
         }
     }
 
-    private fun requestOverlayPermission() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName")
-        )
-        overlayPermissionLauncher.launch(intent)
-    }
-
     private fun requestScreenCapturePermission() {
-        val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
-        screenCaptureLauncher.launch(captureIntent)
+        screenCaptureLauncher.launch(
+            mediaProjectionManager.createScreenCaptureIntent()
+        )
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 服务控制
-    // ─────────────────────────────────────────────────────────────────────
+    // ── 服务控制 ──────────────────────────────────────────────────────
 
     private fun startScreenCaptureService(resultCode: Int, data: Intent) {
         val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
@@ -237,17 +273,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopScreenCaptureService() {
         val serviceIntent = Intent(this, ScreenCaptureService::class.java)
         stopService(serviceIntent)
+        AppPreferences.setFloatEnabled(this, false)
         Toast.makeText(this, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // UI 辅助
-    // ─────────────────────────────────────────────────────────────────────
-
-    private fun updateFloatStatus(enabled: Boolean) {
-        tvFloatStatus.text = if (enabled) "✅ 运行中——切换到其他应用查看悬浮球" else "未启动"
-        tvFloatStatus.setTextColor(
-            if (enabled) getColor(R.color.primary) else getColor(R.color.text_secondary)
-        )
     }
 }

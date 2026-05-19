@@ -1,8 +1,29 @@
 <resources>
-    <string name="app_name">AIAssistant</string>
+    <string name="app_name">AI 伴学</string>
+
+    <!-- 题库练习设置 -->
+    <string-array name="default_rate_range">
+        <item>0</item>
+        <item>100</item>
+    </string-array>
 
     <!-- 悬浮卡片 -->
     <string name="card_title">AI 解析助手</string>
     <string name="card_loading">✨ 正在思考中...</string>
     <string name="card_close">✕</string>
+
+    <!-- 底部导航 -->
+    <string name="tab_home">主页</string>
+    <string name="tab_ai_model">AI模型</string>
+    <string name="tab_ocr">OCR模型</string>
+    <string name="tab_prompt">Prompt</string>
+
+    <!-- 题型名称 -->
+    <string name="type_pian_duan_yue_du">片段阅读</string>
+    <string name="type_luo_ji_tian_kong">逻辑填空</string>
+    <string name="type_yu_ju_biao_da">语句表达</string>
+    <string name="type_tu_xing_tui_li">图形推理</string>
+    <string name="type_ding_yi_pan_duan">定义判断</string>
+    <string name="type_lei_bi_tui_li">类比推理</string>
+    <string name="type_luo_ji_pan_duan">逻辑判断</string>
 </resources>

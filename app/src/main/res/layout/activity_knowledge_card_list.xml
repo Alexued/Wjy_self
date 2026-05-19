@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F9FAFB"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 顶部栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp"
+            android:paddingEnd="12dp"
+            android:background="#FFFFFF"
+            android:elevation="2dp">
+
+            <TextView
+                android:id="@+id/btn_back"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:text="←"
+                android:textSize="20sp"
+                android:textColor="#374151"
+                android:gravity="center"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#1F2937" />
+
+            <TextView
+                android:id="@+id/btn_batch_delete"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="删除"
+                android:textColor="#EF4444"
+                android:textSize="14sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btn_select_all"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="全选"
+                android:textColor="#2563EB"
+                android:textSize="14sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btn_export"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="导出"
+                android:textColor="#2563EB"
+                android:textSize="14sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:background="?android:attr/selectableItemBackground" />
+        </LinearLayout>
+
+        <!-- 搜索栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:background="#FFFFFF">
+
+            <EditText
+                android:id="@+id/et_search"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:hint="搜索标题或内容"
+                android:textSize="14sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:background="@drawable/bg_question_box"
+                android:inputType="text"
+                android:singleLine="true"
+                android:imeOptions="actionSearch" />
+
+            <TextView
+                android:id="@+id/btn_grid_toggle"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="▦"
+                android:textSize="18sp"
+                android:textColor="#6B7280"
+                android:gravity="center"
+                android:layout_marginStart="8dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+
+        <!-- 统计信息 -->
+        <TextView
+            android:id="@+id/tv_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textSize="12sp"
+            android:textColor="#9CA3AF" />
+
+        <!-- 卡片列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_cards"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clipToPadding="false" />
+
+        <!-- 加载更多指示器 -->
+        <ProgressBar
+            android:id="@+id/pb_load_more"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <!-- 空状态 -->
+        <TextView
+            android:id="@+id/tv_empty"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="暂无卡片\n点击右下角添加"
+            android:textColor="#9CA3AF"
+            android:textSize="15sp"
+            android:lineSpacingMultiplier="1.4"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 添加按钮 -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_add"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        android:layout_margin="16dp"
+        android:src="@android:drawable/ic_input_add"
+        android:contentDescription="添加卡片" />
+
+</FrameLayout>

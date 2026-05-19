@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 标题栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="番茄钟"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary" />
+
+            <ImageView
+                android:id="@+id/btn_settings"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@android:drawable/ic_menu_manage"
+                android:padding="6dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="设置" />
+        </LinearLayout>
+
+        <!-- 计时器卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@color/card_bg"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:padding="24dp">
+
+                <!-- 状态标签 -->
+                <TextView
+                    android:id="@+id/tv_state_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="准备开始"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginBottom="20dp" />
+
+                <!-- 圆形进度环 + 倒计时 -->
+                <FrameLayout
+                    android:layout_width="220dp"
+                    android:layout_height="220dp"
+                    android:layout_gravity="center_horizontal">
+
+                    <!-- 背景圆环 -->
+                    <View
+                        android:id="@+id/view_progress_bg"
+                        android:layout_width="220dp"
+                        android:layout_height="220dp"
+                        android:background="@drawable/bg_circle_progress_bg" />
+
+                    <!-- 进度圆环 (自定义绘制) -->
+                    <com.example.aiassistant.pomodoro.PomodoroProgressView
+                        android:id="@+id/progress_view"
+                        android:layout_width="220dp"
+                        android:layout_height="220dp" />
+
+                    <!-- 中心文字 -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/tv_timer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="25:00"
+                            android:textSize="48sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tv_phase"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="专注"
+                            android:textSize="16sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+                </FrameLayout>
+
+                <!-- 当前任务 -->
+                <LinearLayout
+                    android:id="@+id/layout_current_task"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="20dp"
+                    android:padding="8dp"
+                    android:background="@drawable/bg_noise_chip"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tv_current_task"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary" />
+                </LinearLayout>
+
+                <!-- 今日进度 -->
+                <TextView
+                    android:id="@+id/tv_today_progress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="今日 0/8 🍅"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginTop="12dp" />
+
+                <!-- 操作按钮 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="20dp">
+
+                    <TextView
+                        android:id="@+id/btn_select_task"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:gravity="center"
+                        android:paddingHorizontal="20dp"
+                        android:text="选择任务"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary"
+                        android:background="@drawable/bg_pomodoro_button_secondary"
+                        android:layout_marginEnd="12dp" />
+
+                    <TextView
+                        android:id="@+id/btn_start"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:gravity="center"
+                        android:paddingHorizontal="32dp"
+                        android:text="开始专注"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/white"
+                        android:background="@drawable/bg_pomodoro_button" />
+                </LinearLayout>
+
+                <!-- 暂停/跳过按钮 (专注中显示) -->
+                <LinearLayout
+                    android:id="@+id/layout_pause_skip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/btn_pause"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:gravity="center"
+                        android:paddingHorizontal="20dp"
+                        android:text="暂停"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary"
+                        android:background="@drawable/bg_pomodoro_button_secondary"
+                        android:layout_marginEnd="12dp" />
+
+                    <TextView
+                        android:id="@+id/btn_skip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:gravity="center"
+                        android:paddingHorizontal="20dp"
+                        android:text="跳过"
+                        android:textSize="14sp"
+                        android:textColor="@color/incorrect_red"
+                        android:background="@drawable/bg_pomodoro_button_secondary" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 白噪音区域 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@color/card_bg"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="白噪音"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- 噪音选择 -->
+                <LinearLayout
+                    android:id="@+id/layout_noise_chips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:id="@+id/chip_rain"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="🌧️ 雨声"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:background="@drawable/bg_noise_chip"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:id="@+id/chip_cafe"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="☕ 咖啡"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:background="@drawable/bg_noise_chip"
+                        android:layout_marginEnd="8dp" />
+
+                    <TextView
+                        android:id="@+id/chip_forest"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="🌲 森林"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:background="@drawable/bg_noise_chip" />
+                </LinearLayout>
+
+                <!-- 音量控制 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔊"
+                        android:textSize="16sp"
+                        android:layout_marginEnd="8dp" />
+
+                    <SeekBar
+                        android:id="@+id/seekbar_volume"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="100"
+                        android:progress="60"
+                        android:progressTint="@color/primary"
+                        android:thumbTint="@color/primary" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 今日概览卡片 -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/card_overview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@color/card_bg">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="今日概览"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/btn_view_stats"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="详细统计 ›"
+                        android:textSize="13sp"
+                        android:textColor="@color/primary"
+                        android:background="?attr/selectableItemBackground" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/stats_focus_time"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0m"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="专注时长"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/stats_tomato_count"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/correct_green" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="番茄数"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/stats_completion"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textSize="20sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/tag_blue_text" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="完成率"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</ScrollView>

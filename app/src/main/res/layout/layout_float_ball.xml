@@ -1,18 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 悬浮球 View，60dp 圆形，点击截图 -->
+<!-- 悬浮球 View，圆形，点击截图 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/float_ball_root"
-    android:layout_width="60dp"
-    android:layout_height="60dp"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_float_ball"
     android:elevation="8dp">
 
     <ImageView
         android:id="@+id/iv_ball"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
-        android:background="@drawable/bg_float_ball"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:src="@drawable/ic_ai_ball"
-        android:padding="12dp"
+        android:padding="8dp"
+        android:scaleType="centerInside"
         android:contentDescription="AI截图分析" />
+
+    <!-- 多轮推理进度：居中大字，图标隐藏时显示 -->
+    <TextView
+        android:id="@+id/tv_ball_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
 </FrameLayout>

@@ -6,4 +6,17 @@
     </style>
 
     <style name="Theme.AIAssistant" parent="Base.Theme.AIAssistant" />
+
+    <style name="TransparentDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowIsFloating">true</item>
+    </style>
+
+    <style name="Theme.Transparent" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew assembleRelease *)",
+      "Bash(./gradlew assembleDebug *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "WebFetch(domain:chat.cqjtu.edu.cn)",
+      "Bash(curl *)",
+      "Bash(git reset *)",
+      "Bash(./gradlew clean *)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Bash(cmd.exe *)",
+      "Bash(taskkill /f /im adb.exe)",
+      "Bash(where adb *)",
+      "Bash(adb devices *)",
+      "Bash(xxd)",
+      "Bash(adb install *)",
+      "Bash(adb logcat *)",
+      "Bash(grep *)",
+      "Bash(python *)"
+    ]
+  }
+}

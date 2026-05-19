@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="?android:attr/selectableItemBackground">
+
+    <TextView
+        android:id="@+id/tv_day"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:gravity="center"
+        android:textSize="14sp"
+        android:textColor="#374151" />
+
+    <!-- 任务指示点 -->
+    <View
+        android:id="@+id/dot_indicator"
+        android:layout_width="5dp"
+        android:layout_height="5dp"
+        android:background="@drawable/bg_dot_indicator"
+        android:visibility="gone" />
+
+</LinearLayout>

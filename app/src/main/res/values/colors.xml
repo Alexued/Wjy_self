@@ -3,22 +3,39 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- App 主色调 -->
-    <color name="primary">#6C63FF</color>
-    <color name="primary_dark">#5A52D5</color>
+    <!-- App 主色调 — 蓝色系 -->
+    <color name="primary">#3B82F6</color>
+    <color name="primary_dark">#2563EB</color>
+    <color name="primary_light">#60A5FA</color>
+    <color name="primary_bg">#EBF2FF</color>
 
     <!-- 页面背景 -->
-    <color name="background">#F5F5FA</color>
+    <color name="background">#F0F4FA</color>
 
     <!-- 文字颜色 -->
-    <color name="text_primary">#1E1E2E</color>
-    <color name="text_secondary">#6E6E80</color>
+    <color name="text_primary">#1A1A2E</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_tertiary">#9CA3AF</color>
 
-    <!-- 悬浮卡片颜色 -->
-    <color name="card_header_bg">#2A2A42</color>
-    <color name="card_divider">#333355</color>
-    <color name="card_loading_text">#9090CC</color>
-    <color name="card_result_text">#E0E0FF</color>
-    <color name="card_close_btn">#AAABB8</color>
-    <color name="card_title_text">#FFFFFF</color>
+    <!-- 悬浮卡片颜色 — 白底清爽风格 -->
+    <color name="card_bg">#FFFFFF</color>
+    <color name="card_header_bg">#FFFFFF</color>
+    <color name="card_divider">#E5E7EB</color>
+    <color name="card_loading_text">#6B7280</color>
+    <color name="card_result_text">#374151</color>
+    <color name="card_close_btn">#9CA3AF</color>
+    <color name="card_title_text">#1F2937</color>
+
+    <!-- 状态颜色 -->
+    <color name="correct_green">#10B981</color>
+    <color name="correct_green_bg">#ECFDF5</color>
+    <color name="correct_green_border">#A7F3D0</color>
+    <color name="incorrect_red">#EF4444</color>
+    <color name="incorrect_red_bg">#FEF2F2</color>
+    <color name="incorrect_red_border">#FECACA</color>
+
+    <!-- Tag 颜色 -->
+    <color name="tag_blue_bg">#EFF6FF</color>
+    <color name="tag_blue_text">#2563EB</color>
+    <color name="tag_blue_border">#BFDBFE</color>
 </resources>

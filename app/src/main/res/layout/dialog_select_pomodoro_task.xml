@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="选择关联任务"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 标签筛选 -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:layout_marginBottom="12dp">
+
+        <LinearLayout
+            android:id="@+id/layout_tag_filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
+
+    <!-- 快速新建 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            android:layout_marginEnd="8dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_new_task"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="输入任务名称"
+                android:textSize="14sp"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_add_task"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="添加"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <!-- 任务列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_tasks"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 不关联按钮 -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_no_task"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="不关联任务，直接开始"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+</LinearLayout>

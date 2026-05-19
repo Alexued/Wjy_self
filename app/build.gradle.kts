@@ -48,8 +48,11 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.okhttp)
+    implementation(libs.brotli)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.paddleocr4android)
+    implementation(libs.flexbox)
+    implementation(libs.wcdb)
 }
