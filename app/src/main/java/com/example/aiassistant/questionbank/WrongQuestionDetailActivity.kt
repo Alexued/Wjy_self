@@ -65,20 +65,30 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
         val tvStem = findViewById<TextView>(R.id.tv_stem)
         tvStem.text = if (item.isFromBank) item.bankStem else item.questionText
 
-        // 截图
-        val cardImage = findViewById<View>(R.id.card_image)
+        // 截图（默认折叠）
+        val layoutImageSection = findViewById<View>(R.id.layout_image_section)
+        val headerImage = findViewById<View>(R.id.header_image)
+        val ivImageArrow = findViewById<ImageView>(R.id.iv_image_arrow)
         val ivImage = findViewById<ImageView>(R.id.iv_image)
+        var imageExpanded = false
+
         if (item.imagePath.isNotEmpty() && File(item.imagePath).exists()) {
-            cardImage.visibility = View.VISIBLE
+            layoutImageSection.visibility = View.VISIBLE
             try {
                 val bmp = BitmapFactory.decodeFile(item.imagePath)
                 ivImage.setImageBitmap(bmp)
                 ivImage.setOnClickListener { showImageZoomDialog(item.imagePath) }
             } catch (_: Exception) {
-                cardImage.visibility = View.GONE
+                layoutImageSection.visibility = View.GONE
+            }
+
+            headerImage.setOnClickListener {
+                imageExpanded = !imageExpanded
+                ivImage.visibility = if (imageExpanded) View.VISIBLE else View.GONE
+                ivImageArrow.animate().rotation(if (imageExpanded) 180f else 0f).setDuration(200).start()
             }
         } else {
-            cardImage.visibility = View.GONE
+            layoutImageSection.visibility = View.GONE
         }
 
         // 选项（题库题）

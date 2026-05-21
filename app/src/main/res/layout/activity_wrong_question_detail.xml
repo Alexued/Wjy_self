@@ -92,24 +92,50 @@
                     android:lineSpacingMultiplier="1.4" />
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 截图 -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/card_image"
+            <!-- 截图（默认折叠） -->
+            <LinearLayout
+                android:id="@+id/layout_image_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="0dp"
+                android:orientation="vertical"
                 android:visibility="gone"
                 android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:id="@+id/header_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="?attr/selectableItemBackground"
+                    android:paddingVertical="8dp"
+                    android:paddingHorizontal="4dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="查看截图"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary" />
+
+                    <ImageView
+                        android:id="@+id/iv_image_arrow"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_chevron_down"
+                        app:tint="@color/text_secondary"
+                        android:rotation="0" />
+                </LinearLayout>
 
                 <ImageView
                     android:id="@+id/iv_image"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:scaleType="fitCenter"
-                    android:adjustViewBounds="true" />
-            </com.google.android.material.card.MaterialCardView>
+                    android:adjustViewBounds="true"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <!-- 选项（题库题显示） -->
             <LinearLayout
