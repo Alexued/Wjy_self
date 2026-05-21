@@ -94,6 +94,9 @@ class ScreenCaptureService : Service() {
     internal var silentSearchReady = false
     @Volatile internal var isSilentCapture = false
 
+    // ── 防止重复弹出授权页面 ──────────────────────────────────────────
+    @Volatile internal var isRequestingConsent = false
+
     // ── 缓存截图上下文用于快捷切换重分析 ──
     @Volatile internal var lastQuestionText: String? = null
     @Volatile internal var lastCroppedBitmap: Bitmap? = null
@@ -196,12 +199,17 @@ class ScreenCaptureService : Service() {
                         Log.d(TAG, "Screen unlocked — checking MediaProjection state")
                         onScreenUnlocked()
                     }
+                    MediaProjectionConsentActivity.ACTION_CONSENT_DENIED -> {
+                        Log.d(TAG, "Consent denied — resetting flag")
+                        isRequestingConsent = false
+                    }
                 }
             }
         }
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
+            addAction(MediaProjectionConsentActivity.ACTION_CONSENT_DENIED)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(screenStateReceiver, filter, RECEIVER_NOT_EXPORTED)
@@ -254,6 +262,7 @@ class ScreenCaptureService : Service() {
             // 保存授权凭据，锁屏后可自动恢复，无需用户再次授权
             savedResultCode = resultCode
             savedProjectionData = data.clone() as Intent
+            isRequestingConsent = false  // 授权成功，重置标记
 
             showFloatBall()
             updateSmallBallVisibility()
@@ -308,18 +317,13 @@ class ScreenCaptureService : Service() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             mediaProjectionCallback = object : MediaProjection.Callback() {
                 override fun onStop() {
-                    Log.d(TAG, "MediaProjection stopped by system — will auto-recover")
+                    Log.d(TAG, "MediaProjection stopped by system")
                     mainHandler.post {
-                        // 释放旧资源（但保留 savedResultCode/savedProjectionData 用于恢复）
+                        // 释放旧资源
                         releaseMediaProjection()
-                        // 尝试自动恢复，不打扰用户
-                        if (tryAutoRecoverMediaProjection()) {
-                            Log.d(TAG, "MediaProjection auto-recovered after onStop")
-                            updateNotification()
-                        } else {
-                            Log.w(TAG, "Auto-recover failed after onStop")
-                            updateNotificationForFailure()
-                        }
+                        // Android 14+ token 是一次性的，已被消耗，无法自动恢复
+                        // 用户下次点击悬浮球时会重新弹出授权
+                        updateNotificationForFailure()
                     }
                 }
             }
@@ -394,13 +398,16 @@ class ScreenCaptureService : Service() {
                 Log.d(TAG, "MediaProjection auto-recovered on ball click")
                 updateNotification()
                 // 恢复成功，继续执行后续截图逻辑（不 return）
-            } else {
+            } else if (!isRequestingConsent) {
                 // 自动恢复失败，直接弹系统授权弹窗（无需绕道 MainActivity）
+                isRequestingConsent = true
                 val consentIntent = Intent(this, MediaProjectionConsentActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivity(consentIntent)
                 return
+            } else {
+                return  // 已经在等待授权，不重复弹窗
             }
         }
 

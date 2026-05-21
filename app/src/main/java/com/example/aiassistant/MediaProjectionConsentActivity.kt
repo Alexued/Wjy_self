@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 
 /**
@@ -15,10 +14,20 @@ class MediaProjectionConsentActivity : Activity() {
 
     companion object {
         private const val REQUEST_CODE = 1001
+        const val ACTION_CONSENT_DENIED = "com.example.aiassistant.CONSENT_DENIED"
+        /** 防止同时弹出多个授权页面 */
+        @Volatile
+        var isShowing = false
+            private set
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (isShowing) {
+            finish()
+            return
+        }
+        isShowing = true
         // 无 UI，直接请求授权
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         @Suppress("DEPRECATION")
@@ -39,8 +48,15 @@ class MediaProjectionConsentActivity : Activity() {
                 AppPreferences.setFloatEnabled(this, true)
             } else {
                 Toast.makeText(this, "需要录屏权限才能截图", Toast.LENGTH_SHORT).show()
+                // 用户拒绝授权，通知服务重置标记
+                sendBroadcast(Intent(ACTION_CONSENT_DENIED))
             }
         }
         finish()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isShowing = false
     }
 }

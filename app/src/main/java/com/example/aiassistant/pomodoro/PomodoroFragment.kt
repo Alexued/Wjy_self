@@ -642,32 +642,32 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
         // 3. 通用「后台弹出界面/后台启动」权限检测（完美兼容小米、VIVO、OPPO、魅族等国产定制系统的底层的 OP_BACKGROUND_START_ACTIVITY）
         if (!isBackgroundStartAllowed(ctx)) {
             AlertDialog.Builder(ctx)
-                .setTitle(“需要开启后台弹出界面权限”)
-                .setMessage(“检测到您的手机系统限制了应用在后台弹出窗口。为了使番茄钟能在您使用违规应用时立即弹出拦截画面，请允许应用的「后台弹出界面」或「后台启动界面」权限。”)
-                .setPositiveButton(“去开启”) { _, _ ->
+                .setTitle("需要开启后台弹出界面权限")
+                .setMessage("检测到您的手机系统限制了应用在后台弹出窗口。为了使番茄钟能在您使用违规应用时立即弹出拦截画面，请允许应用的「后台弹出界面」或「后台启动界面」权限。")
+                .setPositiveButton("去开启") { _, _ ->
                     // 1. 小米设备优先尝试精准跳转安全中心
-                    if (Build.MANUFACTURER.equals(“Xiaomi”, ignoreCase = true)) {
+                    if (Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true)) {
                         try {
-                            val intent = Intent(“miui.intent.action.APP_PERM_EDITOR”).apply {
-                                setClassName(“com.miui.securitycenter”, “com.miui.permalink.MainActivity”)
-                                putExtra(“extra_pkgname”, ctx.packageName)
+                            val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                                setClassName("com.miui.securitycenter", "com.miui.permalink.MainActivity")
+                                putExtra("extra_pkgname", ctx.packageName)
                             }
                             startActivity(intent)
                             return@setPositiveButton
                         } catch (_: Exception) {}
                     }
 
-                    // 2. 其他国产设备或标准系统，兜底引导至应用管理详情页，方便用户在”权限管理”中点击开启
+                    // 2. 其他国产设备或标准系统，兜底引导至应用管理详情页，方便用户在"权限管理"中点击开启
                     try {
                         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = android.net.Uri.parse(“package:${ctx.packageName}”)
+                            data = android.net.Uri.parse("package:${ctx.packageName}")
                         }
                         startActivity(intent)
                     } catch (_: Exception) {
-                        Toast.makeText(ctx, “未找到对应设置，请在手机系统「设置」->「应用管理」中找到 AI伴学 并开启该权限”, Toast.LENGTH_LONG).show()
+                        Toast.makeText(ctx, "未找到对应设置，请在手机系统「设置」->「应用管理」中找到 AI伴学 并开启该权限", Toast.LENGTH_LONG).show()
                     }
                 }
-                .setNegativeButton(“取消”, null)
+                .setNegativeButton("取消", null)
                 .show()
             return false
         }
@@ -675,12 +675,12 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
         // 4. 检查忽略电池优化权限，防止后台进入冷冻（cgroup freeze）状态
         if (!isIgnoringBatteryOptimizations(ctx)) {
             AlertDialog.Builder(ctx)
-                .setTitle(“需要允许后台运行”)
-                .setMessage(“为了防止手机系统（如智能省电）在后台强行冷冻或关闭拦截功能，请在接下来的设置中为「AI伴学」选择「无限制」或「允许后台高能耗运行」。”)
-                .setPositiveButton(“去设置”) { _, _ ->
+                .setTitle("需要允许后台运行")
+                .setMessage("为了防止手机系统（如智能省电）在后台强行冷冻或关闭拦截功能，请在接下来的设置中为「AI伴学」选择「无限制」或「允许后台高能耗运行」。")
+                .setPositiveButton("去设置") { _, _ ->
                     try {
                         val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = android.net.Uri.parse(“package:${ctx.packageName}”)
+                            data = android.net.Uri.parse("package:${ctx.packageName}")
                         }
                         startActivity(intent)
                     } catch (e: Exception) {
@@ -688,7 +688,7 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
                         startActivity(intent)
                     }
                 }
-                .setNegativeButton(“取消”, null)
+                .setNegativeButton("取消", null)
                 .show()
             return false
         }
