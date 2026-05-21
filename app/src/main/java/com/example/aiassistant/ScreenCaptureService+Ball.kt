@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -67,12 +68,18 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
     var initialX = 0; var initialY = 0
     var touchStartX = 0f; var touchStartY = 0f
     var isDrag = false
+    var isLongPress = false
 
     val longPressRunnable = Runnable {
         if (!isDrag) {
-            Toast.makeText(this, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
-            AppPreferences.setFloatEnabled(this, false)
-            stopSelf()
+            isLongPress = true
+            if (AppPreferences.getLongPressAction(this@setupFloatBallTouch) == AppPreferences.LONG_PRESS_CLOSE) {
+                Toast.makeText(this@setupFloatBallTouch, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
+                AppPreferences.setFloatEnabled(this@setupFloatBallTouch, false)
+                stopSelf()
+            } else {
+                showBallMenu()
+            }
         }
     }
 
@@ -85,6 +92,7 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
                 touchStartX = event.rawX
                 touchStartY = event.rawY
                 isDrag = false
+                isLongPress = false
                 mainHandler.postDelayed(longPressRunnable, 800)
                 true
             }
@@ -107,7 +115,7 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
             }
             MotionEvent.ACTION_UP -> {
                 mainHandler.removeCallbacks(longPressRunnable)
-                if (!isDrag) {
+                if (!isDrag && !isLongPress) {
                     onFloatBallClicked()
                 }
                 true
@@ -314,4 +322,345 @@ internal fun ScreenCaptureService.hideBallProgress() {
         floatBallView?.findViewById<ImageView>(R.id.iv_ball)?.visibility = View.VISIBLE
         floatBallView?.findViewById<TextView>(R.id.tv_ball_progress)?.visibility = View.GONE
     }
+}
+
+// ── 悬浮球长按菜单 ──────────────────────────────────────────────────
+
+internal fun ScreenCaptureService.showBallMenu() {
+    dismissBallMenu()
+
+    val ballParams = floatBallParams ?: return
+
+    val menuView = LayoutInflater.from(this).inflate(R.layout.layout_ball_menu, null)
+
+    // 先以临时参数添加到窗口，测量实际宽度
+    val tempParams = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+        x = -9999 // 先放到屏幕外
+        y = ballParams.y
+    }
+    windowManager.addView(menuView, tempParams)
+
+    // 测量菜单宽度
+    menuView.measure(
+        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+    )
+    val menuWidth = menuView.measuredWidth
+
+    // 更新位置：悬浮球左侧
+    tempParams.x = ballParams.x - menuWidth - dpToPx(8)
+    if (tempParams.x < 0) tempParams.x = ballParams.x + ballParams.width + dpToPx(8)
+    try { windowManager.updateViewLayout(menuView, tempParams) } catch (_: Exception) {}
+
+    // 按用户配置显示/隐藏菜单项
+    val enabledItems = AppPreferences.getBallMenuItems(this)
+
+    val dictItem = menuView.findViewById<View>(R.id.menu_dict)
+    val captureItem = menuView.findViewById<View>(R.id.menu_capture_mode)
+    val closeItem = menuView.findViewById<View>(R.id.menu_close_ball)
+    val divider1 = menuView.findViewById<View>(R.id.menu_divider_1)
+    val divider2 = menuView.findViewById<View>(R.id.menu_divider_2)
+
+    dictItem.visibility = if (enabledItems.contains("dict")) View.VISIBLE else View.GONE
+    divider1.visibility = if (enabledItems.contains("dict") && enabledItems.any { it != "dict" }) View.VISIBLE else View.GONE
+    captureItem.visibility = if (enabledItems.contains("capture_mode")) View.VISIBLE else View.GONE
+    divider2.visibility = if (enabledItems.contains("capture_mode") && enabledItems.contains("close")) View.VISIBLE else View.GONE
+    closeItem.visibility = if (enabledItems.contains("close")) View.VISIBLE else View.GONE
+
+    // 获取新增的题型与名师菜单项
+    val typeItem = menuView.findViewById<TextView>(R.id.menu_switch_type)
+    val teacherItem = menuView.findViewById<TextView>(R.id.menu_switch_teacher)
+
+    // 显示并更新内容
+    typeItem?.let {
+        it.visibility = View.VISIBLE
+        it.text = "🏷️ 题型: ${AppPreferences.getCurrentQuestionType(this).displayName}"
+        it.setOnClickListener {
+            dismissBallMenu()
+            showTypeSelectDialog()
+        }
+    }
+    teacherItem?.let {
+        it.visibility = View.VISIBLE
+        it.text = "👤 名师: ${TeacherManager.activeTeacher.name}"
+        it.setOnClickListener {
+            dismissBallMenu()
+            showTeacherSelectDialog()
+        }
+    }
+
+    dictItem.setOnClickListener {
+        dismissBallMenu()
+        showDictionaryOverlay()
+    }
+
+    captureItem.setOnClickListener {
+        dismissBallMenu()
+        val currentMode = AppPreferences.getCaptureMode(this)
+        val newMode = if (currentMode == AppPreferences.MODE_FIXED_AREA) AppPreferences.MODE_CUSTOM_AREA else AppPreferences.MODE_FIXED_AREA
+        AppPreferences.setCaptureMode(this, newMode)
+        val modeName = if (newMode == AppPreferences.MODE_FIXED_AREA) "固定区域" else "自定义区域"
+        Toast.makeText(this, "已切换为：$modeName 截图", Toast.LENGTH_SHORT).show()
+    }
+
+    closeItem.setOnClickListener {
+        dismissBallMenu()
+        Toast.makeText(this, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
+        AppPreferences.setFloatEnabled(this, false)
+        stopSelf()
+    }
+
+    ballMenuView = menuView
+
+    // 点击菜单外部关闭
+    menuView.setOnTouchListener { _, event ->
+        if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
+            dismissBallMenu()
+        }
+        false
+    }
+}
+
+internal fun ScreenCaptureService.dismissBallMenu() {
+    ballMenuView?.let {
+        try { windowManager.removeView(it) } catch (_: Exception) {}
+        ballMenuView = null
+    }
+}
+
+// ── 词典浮窗（可拖拽、可缩放、记住大小） ────────────────────────────
+
+internal fun ScreenCaptureService.showDictionaryOverlay() {
+    dismissDictionaryOverlay()
+
+    // 读取保存的尺寸，默认 340x480dp
+    val savedW = AppPreferences.getDictCardWidth(this)
+    val savedH = AppPreferences.getDictCardHeight(this)
+    val cardW = if (savedW > 0) savedW else dpToPx(340)
+    val cardH = if (savedH > 0) savedH else dpToPx(480)
+
+    // 定位到悬浮球左下方
+    val ballP = floatBallParams
+    var posX: Int
+    var posY: Int
+    if (ballP != null) {
+        posX = ballP.x - cardW - dpToPx(8)
+        posY = ballP.y + ballP.height + dpToPx(8)
+        if (posX < 0) posX = ballP.x + ballP.width + dpToPx(8)
+        if (posY + cardH > screenHeight) posY = screenHeight - cardH - dpToPx(16)
+    } else {
+        posX = dpToPx(16)
+        posY = screenHeight / 4
+    }
+
+    val params = WindowManager.LayoutParams(
+        cardW, cardH,
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+        x = posX
+        y = posY
+    }
+
+    val overlayView = LayoutInflater.from(this).inflate(R.layout.layout_dict_overlay, null)
+
+    val etSearch = overlayView.findViewById<EditText>(R.id.et_dict_search)
+    val rvResults = overlayView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rv_dict_results)
+    val tvEmpty = overlayView.findViewById<TextView>(R.id.tv_dict_empty)
+    val btnClose = overlayView.findViewById<View>(R.id.btn_dict_close)
+    val header = overlayView.findViewById<View>(R.id.dict_header)
+    val resizeHandle = overlayView.findViewById<View>(R.id.dict_resize_handle)
+
+    rvResults.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+
+    // ── 拖拽移动（按住 header） ──
+    header.setOnTouchListener(object : View.OnTouchListener {
+        private var initX = 0; private var initY = 0
+        private var touchX = 0f; private var touchY = 0f
+        override fun onTouch(v: View, event: MotionEvent): Boolean {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initX = params.x; initY = params.y
+                    touchX = event.rawX; touchY = event.rawY
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    params.x = (initX + event.rawX - touchX).toInt()
+                    params.y = (initY + event.rawY - touchY).toInt()
+                    try { windowManager.updateViewLayout(overlayView, params) } catch (_: Exception) {}
+                    return true
+                }
+            }
+            return false
+        }
+    })
+
+    // ── 缩放（按住底部拖拽条） ──
+    resizeHandle.setOnTouchListener(object : View.OnTouchListener {
+        private var initW = 0; private var initH = 0
+        private var touchY = 0f
+        override fun onTouch(v: View, event: MotionEvent): Boolean {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initW = params.width; initH = params.height
+                    touchY = event.rawY
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val newH = (initH + event.rawY - touchY).toInt().coerceIn(dpToPx(200), screenHeight - params.y - dpToPx(16))
+                    params.height = newH
+                    try { windowManager.updateViewLayout(overlayView, params) } catch (_: Exception) {}
+                    return true
+                }
+                MotionEvent.ACTION_UP -> {
+                    AppPreferences.saveDictCardSize(this@showDictionaryOverlay, params.width, params.height)
+                    return true
+                }
+            }
+            return false
+        }
+    })
+
+    // ── 关闭按钮 ──
+    btnClose.setOnClickListener { dismissDictionaryOverlay() }
+
+    // ── 点击半透明背景关闭 ──
+    overlayView.setOnTouchListener { _, event ->
+        if (event.action == MotionEvent.ACTION_UP) {
+            val card = overlayView.findViewById<View>(R.id.dict_card)
+            if (card != null) {
+                val loc = IntArray(2)
+                card.getLocationOnScreen(loc)
+                if (event.rawX < loc[0] || event.rawX > loc[0] + card.width ||
+                    event.rawY < loc[1] || event.rawY > loc[1] + card.height) {
+                    dismissDictionaryOverlay()
+                    return@setOnTouchListener true
+                }
+            }
+        }
+        false
+    }
+
+    windowManager.addView(overlayView, params)
+    dictOverlayView = overlayView
+
+    // ── 切换为可聚焦以弹出键盘 ──
+    etSearch.requestFocus()
+    etSearch.postDelayed({
+        params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        try { windowManager.updateViewLayout(overlayView, params) } catch (_: Exception) {}
+        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+        imm?.showSoftInput(etSearch, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }, 200)
+
+    // ── 防抖搜索 ──
+    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    var searchRunnable: Runnable? = null
+
+    etSearch.addTextChangedListener(object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        override fun afterTextChanged(s: android.text.Editable?) {
+            searchRunnable?.let { handler.removeCallbacks(it) }
+            searchRunnable = Runnable {
+                val q = s?.toString()?.trim() ?: ""
+                if (q.isBlank()) {
+                    tvEmpty.text = "输入内容开始查询"
+                    tvEmpty.visibility = View.VISIBLE
+                    rvResults.visibility = View.GONE
+                    return@Runnable
+                }
+                com.example.aiassistant.dictionary.DictionaryManager.searchAsync(q) { result ->
+                    if (result.isEmpty) {
+                        tvEmpty.text = "未找到结果"
+                        tvEmpty.visibility = View.VISIBLE
+                        rvResults.visibility = View.GONE
+                    } else {
+                        tvEmpty.visibility = View.GONE
+                        rvResults.visibility = View.VISIBLE
+                        rvResults.adapter = com.example.aiassistant.dictionary.DictionaryAdapter(result)
+                    }
+                }
+            }
+            handler.postDelayed(searchRunnable!!, 150)
+        }
+    })
+
+    // ── 读取剪贴板 ──
+    val clipText = try {
+        val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+        clipboard?.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+    } catch (_: SecurityException) { null }
+
+    if (!clipText.isNullOrBlank()) {
+        etSearch.setText(clipText)
+    }
+}
+
+internal fun ScreenCaptureService.dismissDictionaryOverlay() {
+    dictOverlayView?.let {
+        try { windowManager.removeView(it) } catch (_: Exception) {}
+        dictOverlayView = null
+    }
+}
+
+private fun ScreenCaptureService.showTypeSelectDialog() {
+    val items = QuestionType.entries.map { it.displayName }.toTypedArray()
+    val activeType = AppPreferences.getCurrentQuestionType(this)
+    val checkedItem = QuestionType.entries.indexOf(activeType)
+
+    val builder = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+        .setTitle("选择当前默认题型")
+        .setSingleChoiceItems(items, checkedItem) { dialog, which ->
+            val selectedType = QuestionType.entries[which]
+            AppPreferences.setCurrentQuestionType(this, selectedType)
+            Toast.makeText(this, "当前默认题型已切换为：${selectedType.displayName}", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+        .setNegativeButton("取消", null)
+
+    val dialog = builder.create()
+    if (android.os.Build.VERSION.SDK_INT >= 26) {
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+    } else {
+        @Suppress("DEPRECATION")
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
+    }
+    dialog.show()
+}
+
+private fun ScreenCaptureService.showTeacherSelectDialog() {
+    val teachers = TeacherManager.allTeachers
+    val items = teachers.map { it.name }.toTypedArray()
+    val activeTeacher = TeacherManager.activeTeacher
+    val checkedItem = teachers.indexOfFirst { it.id == activeTeacher.id }.coerceAtLeast(0)
+
+    val builder = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+        .setTitle("选择当前分析名师")
+        .setSingleChoiceItems(items, checkedItem) { dialog, which ->
+            val selectedTeacher = teachers[which]
+            TeacherManager.switchTeacher(this, selectedTeacher.id)
+            Toast.makeText(this, "当前分析名师已切换为：${selectedTeacher.name}", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+        .setNegativeButton("取消", null)
+
+    val dialog = builder.create()
+    if (android.os.Build.VERSION.SDK_INT >= 26) {
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+    } else {
+        @Suppress("DEPRECATION")
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
+    }
+    dialog.show()
 }

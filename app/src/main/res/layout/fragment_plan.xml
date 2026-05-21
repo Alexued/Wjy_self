@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F9FAFB">
+    android:background="@color/background">
 
     <!-- 标题栏 -->
     <LinearLayout
@@ -23,7 +23,7 @@
             android:text="计划表"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:textColor="#1F2937" />
+            android:textColor="@color/text_primary" />
 
         <!-- 视图切换 -->
         <TextView
@@ -31,7 +31,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📅 日历"
-            android:textColor="#2563EB"
+            android:textColor="@color/primary"
             android:textSize="13sp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
@@ -46,7 +46,7 @@
             android:layout_height="40dp"
             android:text="⋮"
             android:textSize="18sp"
-            android:textColor="#6B7280"
+            android:textColor="@color/text_secondary"
             android:gravity="center"
             android:background="?android:attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
@@ -73,7 +73,7 @@
                 android:layout_height="40dp"
                 android:text="◀"
                 android:textSize="14sp"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackgroundBorderless" />
 
@@ -85,7 +85,7 @@
                 android:gravity="center"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#1F2937" />
+                android:textColor="@color/text_primary" />
 
             <TextView
                 android:id="@+id/btn_next_month"
@@ -93,7 +93,7 @@
                 android:layout_height="40dp"
                 android:text="▶"
                 android:textSize="14sp"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackgroundBorderless" />
         </LinearLayout>
@@ -140,7 +140,7 @@
                 android:layout_height="wrap_content"
                 android:text="全部"
                 android:textSize="13sp"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/white"
                 android:textStyle="bold"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
@@ -155,7 +155,7 @@
                 android:layout_height="wrap_content"
                 android:text="未完成"
                 android:textSize="13sp"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:paddingTop="6dp"
@@ -169,7 +169,7 @@
                 android:layout_height="wrap_content"
                 android:text="已完成"
                 android:textSize="13sp"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:paddingTop="6dp"
@@ -186,7 +186,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textSize="12sp"
-                android:textColor="#9CA3AF" />
+                android:textColor="@color/text_tertiary" />
         </LinearLayout>
 
         <!-- 树形任务列表 -->
@@ -207,7 +207,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="暂无任务"
-            android:textColor="#9CA3AF"
+            android:textColor="@color/text_tertiary"
             android:textSize="15sp"
             android:visibility="gone" />
     </LinearLayout>

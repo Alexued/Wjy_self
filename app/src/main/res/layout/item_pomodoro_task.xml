@@ -1,28 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:padding="12dp"
+    android:paddingVertical="10dp"
+    android:paddingHorizontal="12dp"
     android:background="?attr/selectableItemBackground">
 
-    <TextView
-        android:id="@+id/tv_task_title"
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textSize="14sp"
-        android:textColor="@color/text_primary" />
+        android:orientation="vertical">
 
+        <TextView
+            android:id="@+id/tv_task_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary" />
+
+        <TextView
+            android:id="@+id/tv_task_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary" />
+    </LinearLayout>
+
+    <!-- 白名单配置 -->
     <TextView
-        android:id="@+id/tv_task_tag"
+        android:id="@+id/btn_task_whitelist"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="28dp"
+        android:gravity="center"
+        android:text="白名单"
         android:textSize="11sp"
         android:textColor="@color/primary"
-        android:background="@drawable/bg_noise_chip"
+        android:background="@drawable/bg_count_badge"
         android:paddingHorizontal="8dp"
-        android:paddingVertical="2dp"
-        android:layout_marginStart="8dp" />
+        android:layout_marginEnd="8dp"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- 编辑按钮 -->
+    <ImageView
+        android:id="@+id/btn_task_edit"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:padding="6dp"
+        android:src="@android:drawable/ic_menu_edit"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:layout_marginEnd="4dp"
+        android:contentDescription="编辑"
+        app:tint="@color/text_secondary" />
+
+    <!-- 删除按钮 -->
+    <ImageView
+        android:id="@+id/btn_task_delete"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:padding="6dp"
+        android:src="@android:drawable/ic_menu_delete"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="删除"
+        app:tint="@color/incorrect_red" />
+
 </LinearLayout>

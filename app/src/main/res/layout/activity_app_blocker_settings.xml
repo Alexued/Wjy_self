@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <!-- 标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="@color/card_bg">
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@android:drawable/ic_menu_revert"
+            android:padding="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="返回" />
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="白名单设置"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <!-- 模式选择（兼容旧代码，Activity 中隐藏） -->
+    <LinearLayout
+        android:id="@+id/btn_whitelist"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+    <LinearLayout
+        android:id="@+id/btn_blacklist"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+    <!-- 说明 -->
+    <TextView
+        android:id="@+id/tv_mode_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="设置专注时允许使用的应用，其他应用将被拦截"
+        android:textSize="13sp"
+        android:textColor="@color/text_secondary"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 搜索框 -->
+    <EditText
+        android:id="@+id/et_search"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:hint="搜索应用..."
+        android:textSize="14sp"
+        android:paddingHorizontal="16dp"
+        android:background="@drawable/bg_noise_chip"
+        android:inputType="text"
+        android:maxLines="1" />
+
+    <!-- 已选数量 -->
+    <TextView
+        android:id="@+id/tv_selected_count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="已允许 0 个应用"
+        android:textSize="13sp"
+        android:textColor="@color/primary"
+        android:paddingHorizontal="16dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 应用列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_apps"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp" />
+
+</LinearLayout>

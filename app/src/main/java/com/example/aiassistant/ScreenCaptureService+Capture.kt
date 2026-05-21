@@ -26,7 +26,8 @@ internal fun ScreenCaptureService.captureAndCrop(cropRect: Rect) {
                     val cropped = cropBitmap(bitmap, cropRect)
                     bitmap.recycle()
                     if (cropped != null) {
-                        if (!isSilentCapture) showResultCard()
+                        val shouldShowCard = !isSilentCapture && AppPreferences.getFloatClickAction(this) != AppPreferences.CLICK_ACTION_RECORD_WRONG
+                        if (shouldShowCard) showResultCard()
                         sendToAI(cropped)
                     } else {
                         isCapturing = false
@@ -184,7 +185,8 @@ internal fun ScreenCaptureService.showAreaSelectionOverlay(fullBitmap: Bitmap, s
             val cropped = cropBitmap(fullBitmap, rect)
             fullBitmap.recycle()
             if (cropped != null) {
-                if (!isSilentCapture) showResultCard()
+                val shouldShowCard = !isSilentCapture && AppPreferences.getFloatClickAction(this) != AppPreferences.CLICK_ACTION_RECORD_WRONG
+                if (shouldShowCard) showResultCard()
                 sendToAI(cropped)
             } else {
                 isCapturing = false

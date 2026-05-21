@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="任务名称"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="6dp" />
+
+    <EditText
+        android:id="@+id/et_edit_task_name"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:hint="任务名称"
+        android:textColorHint="@color/text_tertiary"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:background="@drawable/bg_question_box"
+        android:paddingHorizontal="12dp"
+        android:layout_marginBottom="16dp"
+        android:maxLines="1"
+        android:inputType="text" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="专注时长 (分钟)"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_secondary"
+        android:layout_marginBottom="6dp" />
+
+    <EditText
+        android:id="@+id/et_edit_task_minutes"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:hint="时长"
+        android:textColorHint="@color/text_tertiary"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp"
+        android:background="@drawable/bg_question_box"
+        android:paddingHorizontal="12dp"
+        android:maxLines="1"
+        android:inputType="number" />
+
+</LinearLayout>

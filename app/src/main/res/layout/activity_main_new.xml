@@ -46,10 +46,11 @@
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
+        android:background="@color/background_card_glass"
+        app:backgroundTint="@color/background_card_glass"
         app:menu="@menu/bottom_nav_menu"
         app:labelVisibilityMode="labeled"
         app:itemIconTint="@color/bottom_nav_color"
         app:itemTextColor="@color/bottom_nav_color"
-        app:elevation="8dp" />
+        app:elevation="0dp" />
 </LinearLayout>

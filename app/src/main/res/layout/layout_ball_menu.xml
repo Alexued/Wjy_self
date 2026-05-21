@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_ball_menu"
+    android:padding="8dp"
+    android:minWidth="160dp">
+
+    <TextView
+        android:id="@+id/menu_dict"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="词典查询"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:background="?android:attr/selectableItemBackground"
+        android:drawableStart="@drawable/ic_dictionary"
+        android:drawablePadding="12dp" />
+
+    <View
+        android:id="@+id/menu_divider_1"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp" />
+
+    <TextView
+        android:id="@+id/menu_capture_mode"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="切换截图模式"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <View
+        android:id="@+id/menu_divider_2"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp" />
+
+    <TextView
+        android:id="@+id/menu_switch_type"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="🏷️ 当前题型"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <View
+        android:id="@+id/menu_divider_3"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp" />
+
+    <TextView
+        android:id="@+id/menu_switch_teacher"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="👤 切换名师"
+        android:textSize="15sp"
+        android:textColor="@color/text_primary"
+        android:background="?android:attr/selectableItemBackground" />
+
+    <View
+        android:id="@+id/menu_divider_4"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#EEEEEE"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp" />
+
+    <TextView
+        android:id="@+id/menu_close_ball"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="关闭悬浮球"
+        android:textSize="15sp"
+        android:textColor="#EF4444"
+        android:background="?android:attr/selectableItemBackground" />
+
+</LinearLayout>

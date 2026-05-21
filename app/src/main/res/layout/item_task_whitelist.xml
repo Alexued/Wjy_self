@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="56dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:layout_marginBottom="8dp"
+    android:paddingHorizontal="16dp"
+    android:background="@drawable/bg_option_normal"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- 任务名 -->
+    <TextView
+        android:id="@+id/tv_task_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:ellipsize="end"
+        android:maxLines="1" />
+
+    <!-- 已选应用计数标签 -->
+    <TextView
+        android:id="@+id/tv_whitelist_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="@color/primary"
+        android:background="@drawable/bg_primary_chip"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="3dp"
+        android:layout_marginEnd="8dp" />
+
+    <!-- 现代向右小箭头 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="›"
+        android:textSize="20sp"
+        android:textColor="@color/text_tertiary"
+        android:layout_gravity="center"
+        android:includeFontPadding="false" />
+
+</LinearLayout>

@@ -82,6 +82,9 @@ class QuestionBankFragment : Fragment() {
         private val onChildClick: (QuestionModule) -> Unit
     ) : RecyclerView.Adapter<ModuleAdapter.ViewHolder>() {
 
+        // 维护已展开项的位置集合，确保 RecyclerView 在滑动复用时状态绝不丢失或错乱
+        private val expandedPositions = mutableSetOf<Int>()
+
         inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
             val tvModuleName: TextView = view.findViewById(R.id.tv_module_name)
             val tvQuestionCount: TextView = view.findViewById(R.id.tv_question_count)
@@ -100,22 +103,26 @@ class QuestionBankFragment : Fragment() {
             holder.tvModuleName.text = module.name
             holder.tvQuestionCount.text = "${module.questionCount + module.children.sumOf { it.questionCount }} 题"
 
-            // 设置展开/收起状态
-            val isExpanded = holder.layoutChildren.visibility == View.VISIBLE
+            // 根据数据状态同步 UI
+            val isExpanded = expandedPositions.contains(position)
+            holder.layoutChildren.visibility = if (isExpanded) View.VISIBLE else View.GONE
             holder.ivExpand.rotation = if (isExpanded) 180f else 0f
 
-            // 点击展开/收起
+            if (isExpanded) {
+                addChildViews(holder.layoutChildren, module.children)
+            } else {
+                holder.layoutChildren.removeAllViews()
+            }
+
             holder.itemView.setOnClickListener {
-                val expanded = holder.layoutChildren.visibility == View.VISIBLE
-                if (expanded) {
-                    holder.layoutChildren.visibility = View.GONE
-                    holder.ivExpand.animate().rotation(0f).setDuration(200).start()
+                val currentlyExpanded = expandedPositions.contains(position)
+                if (currentlyExpanded) {
+                    expandedPositions.remove(position)
                 } else {
-                    holder.layoutChildren.visibility = View.VISIBLE
-                    holder.ivExpand.animate().rotation(180f).setDuration(200).start()
-                    // 添加子模块视图
-                    addChildViews(holder.layoutChildren, module.children)
+                    expandedPositions.add(position)
                 }
+                // 使用官方的标准局部更新，强制触发 RecyclerView 重测重绘，彻底解决在手机上无法展开完整的适配问题
+                notifyItemChanged(position)
             }
         }
 

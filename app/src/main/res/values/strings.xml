@@ -26,4 +26,7 @@
     <string name="type_ding_yi_pan_duan">定义判断</string>
     <string name="type_lei_bi_tui_li">类比推理</string>
     <string name="type_luo_ji_pan_duan">逻辑判断</string>
+
+    <!-- 无障碍服务 -->
+    <string name="accessibility_service_desc">AI伴学番茄钟需要此权限来检测当前前台应用，实现专注模式下的应用拦截功能。此服务不会收集或上传任何数据。</string>
 </resources>

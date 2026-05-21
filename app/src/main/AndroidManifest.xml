@@ -4,12 +4,32 @@
 
     <!-- 悬浮窗权限 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 唤醒锁权限，防止后台冷冻 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- 前台服务权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- 录屏前台服务权限 (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- 特殊用途前台服务权限 (Android 14+, 应用拦截) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- 网络权限（调用 AI API） -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 应用使用统计权限（番茄钟应用拦截） -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- 查询所有已安装应用（Android 11+ 包可见性） -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <!-- 忽略电池优化，防止后台应用拦截线程被冻结或强杀 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 允许查询所有带 Launcher 的应用（番茄钟应用拦截 - 应用列表） -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".App"
@@ -50,6 +70,12 @@
             android:exported="false"
             android:theme="@style/Theme.AIAssistant" />
 
+        <!-- 错题本页面 -->
+        <activity
+            android:name=".questionbank.WrongQuestionsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIAssistant" />
+
         <!-- 番茄钟设置 -->
         <activity
             android:name=".pomodoro.PomodoroSettingsActivity"
@@ -61,6 +87,27 @@
             android:name=".pomodoro.PomodoroStatsActivity"
             android:exported="false"
             android:theme="@style/Theme.AIAssistant" />
+
+        <!-- 番茄钟应用拦截设置 -->
+        <activity
+            android:name=".pomodoro.AppBlockerSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIAssistant" />
+
+        <!-- 番茄钟应用拦截服务 -->
+        <service
+            android:name=".pomodoro.AppBlockerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
+
+
+        <!-- 词典查询 -->
+        <activity
+            android:name=".dictionary.DictionaryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIAssistant"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- MediaProjection 重新授权（透明 Activity，无 UI） -->
         <activity

@@ -1,11 +1,16 @@
 package com.example.aiassistant.pomodoro
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.provider.Settings
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.PowerManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +23,8 @@ import androidx.fragment.app.Fragment
 import com.example.aiassistant.AppPreferences
 import com.example.aiassistant.R
 import com.example.aiassistant.plan.PlanManager
+
+data class PomoTask(var title: String, var minutes: Int, var tag: String = "专注")
 
 class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
 
@@ -52,6 +59,27 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
     private var currentSessionId: Long = -1
     private var whiteNoisePlayer: WhiteNoisePlayer? = null
 
+    // 应用拦截：接收来自拦截服务的"结束专注"广播
+    private val stopFocusReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            timer?.let { t ->
+                if (t.isRunning() || t.state == TimerState.PAUSED) {
+                    // 停止计时器并记录
+                    if (currentSessionId > 0) {
+                        val elapsedMinutes = ((t.getElapsedMillis()) / 60000).toInt().coerceAtLeast(1)
+                        PomodoroManager.cancelSession(currentSessionId, elapsedMinutes)
+                        currentSessionId = -1
+                    }
+                    t.stop()
+                    whiteNoisePlayer?.pause()
+                    stopAppBlocker()
+                    updateUI()
+                    refreshStats()
+                }
+            }
+        }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_pomodoro, container, false)
     }
@@ -67,16 +95,46 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
         timer = PomodoroTimer(this)
         loadConfig()
 
+        // 注册"结束专注"广播
+        val filter = IntentFilter("com.example.aiassistant.STOP_FOCUS")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requireContext().registerReceiver(stopFocusReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            requireContext().registerReceiver(stopFocusReceiver, filter)
+        }
+
         // 先恢复旋转前的计时器，再清理孤立会话（避免清理掉正在恢复的会话）
         restoreTimerIfNeeded()
         try { PomodoroManager.cleanOrphanedSessions() } catch (_: Exception) {}
         refreshStats()
+
+        // 第一次进入番茄钟引导
+        if (AppPreferences.isPomodoroFirstEntry(requireContext())) {
+            showFirstEntryGuide()
+        }
+    }
+
+    private fun showFirstEntryGuide() {
+        val ctx = context ?: return
+        AlertDialog.Builder(ctx)
+            .setTitle("✨ 静心专注指引")
+            .setMessage("欢迎使用番茄工作法！\n\n右上角的「齿轮」图标是番茄钟的设置中心。您可以在那里配置番茄时长、开启静心白噪音、以及开启「应用白名单拦截」，助您心无旁骛、高效学习。")
+            .setPositiveButton("我知道了") { dialog, _ ->
+                AppPreferences.setPomodoroFirstEntry(ctx, false)
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .show()
     }
 
     override fun onDestroyView() {
         // 如果计时器正在运行，保存状态（供旋转后恢复）
+        val timerWasActive = timer?.let { t ->
+            t.isRunning() || t.state == TimerState.PAUSED
+        } ?: false
+
         timer?.let { t ->
-            if (t.isRunning() || t.state == TimerState.PAUSED) {
+            if (timerWasActive) {
                 PomodoroTimerHolder.save(requireContext(), t, currentSessionId, currentTaskTitle, currentTag, currentPlanTaskId)
             }
         }
@@ -86,6 +144,16 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
 
         whiteNoisePlayer?.release()
         whiteNoisePlayer = null
+
+        // 注销广播接收器
+        try { requireContext().unregisterReceiver(stopFocusReceiver) } catch (_: Exception) {}
+
+        // ⚠️ 关键：onDestroyView 不能停止 AppBlockerService！
+        // 用户切到其他 App 时 Fragment 的 View 会被销毁，此时服务必须继续运行来拦截
+        // 只有在计时器不再专注（IDLE/非运行）时才停服务
+        if (!timerWasActive) {
+            stopAppBlocker()
+        }
 
         try { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } catch (_: Exception) {}
 
@@ -182,6 +250,14 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
 
     private fun onStartClicked() {
         val t = timer ?: return
+        
+        // ── 核心安全权限校验 ──
+        if (AppPreferences.isAppBlockerEnabled(requireContext())) {
+            if (!checkAppBlockerPermissions()) {
+                return // 拦截：必须拥有权限才能开始专注
+            }
+        }
+
         when (t.state) {
             TimerState.IDLE -> {
                 val sessionId = PomodoroManager.startSession(
@@ -197,14 +273,25 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
                 currentSessionId = sessionId
                 t.startFocus()
                 whiteNoisePlayer?.play()
+                // 保存当前任务名，供 AppBlockerService 读取对应白名单
+                val taskName = currentTaskTitle.ifEmpty { "专注学习" }
+                AppPreferences.setAppBlockerCurrentTask(requireContext(), taskName)
+                startAppBlocker()
             }
             TimerState.PAUSED -> {
                 t.resume()
                 whiteNoisePlayer?.play()
+                if (timer?.state == TimerState.FOCUS || pausedFromFocus()) {
+                    startAppBlocker()
+                }
             }
             else -> {}
         }
         updateUI()
+    }
+
+    private fun pausedFromFocus(): Boolean {
+        return timer?.pausedFromStateOrdinal() == TimerState.FOCUS.ordinal
     }
 
     private fun onPauseClicked() {
@@ -244,6 +331,11 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
                 PomodoroManager.completeSession(currentSessionId, elapsedMinutes)
             }
             currentSessionId = -1
+        }
+
+        // 专注阶段结束，停止应用拦截
+        if (state == TimerState.FOCUS) {
+            stopAppBlocker()
         }
 
         if (!isSkipped) {
@@ -360,64 +452,131 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
         tvTodayProgress?.text = "今日 ${stats.completedCount}/$dailyTarget 🍅"
     }
 
-    // ── 任务选择弹窗 ──
+    // ── 任务选择与自定义 ──
+
+    private fun getUserTasks(context: Context): List<PomoTask> {
+        val raw = context.getSharedPreferences(AppPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("pomodoro_user_tasks", null)
+        if (raw.isNullOrEmpty()) {
+            return listOf(
+                PomoTask("背英语单词", 25, "英语"),
+                PomoTask("做数学卷子", 45, "数学"),
+                PomoTask("静坐与正念", 15, "冥想")
+            )
+        }
+        return raw.split(";;;").mapNotNull {
+            val parts = it.split("|")
+            if (parts.size >= 3) {
+                PomoTask(parts[0], parts[1].toIntOrNull() ?: 25, parts[2])
+            } else null
+        }
+    }
+
+    private fun saveUserTasks(context: Context, tasks: List<PomoTask>) {
+        val raw = tasks.joinToString(";;;") { "${it.title}|${it.minutes}|${it.tag}" }
+        context.getSharedPreferences(AppPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString("pomodoro_user_tasks", raw).apply()
+    }
 
     private fun showTaskSelectDialog() {
         if (!isAdded) return
-        val dialogView = LayoutInflater.from(requireContext())
+        val context = requireContext()
+        val dialogView = LayoutInflater.from(context)
             .inflate(R.layout.dialog_select_pomodoro_task, null)
 
-        val etNewTask = dialogView.findViewById<TextView>(R.id.et_new_task)
+        val etNewTask = dialogView.findViewById<android.widget.EditText>(R.id.et_new_task)
+        val etNewTaskMinutes = dialogView.findViewById<android.widget.EditText>(R.id.et_new_task_minutes)
         val btnAddTask = dialogView.findViewById<View>(R.id.btn_add_task)
         val rvTasks = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rv_tasks)
         val btnNoTask = dialogView.findViewById<View>(R.id.btn_no_task)
-        val layoutTagFilter = dialogView.findViewById<android.view.ViewGroup>(R.id.layout_tag_filter)
 
-        var selectedTag = ""
-        val allTags = listOf("全部") + FocusSession.DEFAULT_TAGS
-        val tagViews = mutableListOf<TextView>()
-        for (tag in allTags) {
-            val chip = TextView(requireContext()).apply {
-                text = tag
-                textSize = 13f
-                setPadding(24, 8, 24, 8)
-                setBackgroundResource(R.drawable.bg_noise_chip)
-                setTextColor(resources.getColor(R.color.text_secondary, null))
-            }
-            chip.setOnClickListener {
-                tagViews.forEach { tv ->
-                    tv.setBackgroundResource(R.drawable.bg_noise_chip)
-                    tv.setTextColor(resources.getColor(R.color.text_secondary, null))
-                }
-                chip.setBackgroundResource(R.drawable.bg_noise_chip_selected)
-                chip.setTextColor(resources.getColor(R.color.primary, null))
-                selectedTag = if (tag == "全部") "" else tag
-            }
-            tagViews.add(chip)
-            layoutTagFilter.addView(chip)
-        }
-        tagViews[0].performClick()
-
-        val tasks = loadTasksForSelection("")
-        val adapter = TaskSelectAdapter(tasks) { taskTitle, tag ->
-            currentTaskTitle = taskTitle
-            currentTag = tag
-            updateUI()
-        }
-        rvTasks.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
-        rvTasks.adapter = adapter
-
-        val dialog = AlertDialog.Builder(requireContext())
+        val dialog = AlertDialog.Builder(context)
             .setView(dialogView)
             .create()
 
+        val tasks = getUserTasks(context).toMutableList()
+        var adapter: TaskSelectAdapter? = null
+
+        val onSelect: (PomoTask) -> Unit = { task ->
+            currentTaskTitle = task.title
+            currentTag = task.tag
+            currentPlanTaskId = -1
+
+            // 自动加载该任务的专注时长
+            val freshConfig = timer?.config?.copy(focusMinutes = task.minutes)
+            if (freshConfig != null) {
+                timer?.configure(freshConfig)
+                updateTimerDisplay(task.minutes * 60L * 1000, task.minutes * 60L * 1000)
+            }
+
+            updateUI()
+            dialog.dismiss()
+        }
+
+        val onEdit: (Int, PomoTask) -> Unit = { index, task ->
+            val editDialogView = LayoutInflater.from(context)
+                .inflate(R.layout.dialog_edit_pomo_task, null)
+            val etEditName = editDialogView.findViewById<android.widget.EditText>(R.id.et_edit_task_name)
+            val etEditMinutes = editDialogView.findViewById<android.widget.EditText>(R.id.et_edit_task_minutes)
+            etEditName.setText(task.title)
+            etEditMinutes.setText(task.minutes.toString())
+
+            AlertDialog.Builder(context)
+                .setTitle("编辑任务")
+                .setView(editDialogView)
+                .setPositiveButton("保存") { editDialog, _ ->
+                    val name = etEditName.text.toString().trim()
+                    val min = etEditMinutes.text.toString().trim().toIntOrNull() ?: 25
+                    if (name.isNotEmpty()) {
+                        task.title = name
+                        task.minutes = min
+                        saveUserTasks(context, tasks)
+                        adapter?.notifyItemChanged(index)
+                    }
+                    editDialog.dismiss()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+
+        val onDelete: (Int, PomoTask) -> Unit = { index, task ->
+            AlertDialog.Builder(context)
+                .setTitle("删除任务")
+                .setMessage("确定要删除任务「${task.title}」吗？")
+                .setPositiveButton("删除") { confirmDialog, _ ->
+                    tasks.removeAt(index)
+                    saveUserTasks(context, tasks)
+                    adapter?.notifyItemRemoved(index)
+                    adapter?.notifyItemRangeChanged(index, tasks.size)
+                    confirmDialog.dismiss()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+
+        adapter = TaskSelectAdapter(
+            items = tasks,
+            onSelect = onSelect,
+            onEdit = onEdit,
+            onDelete = onDelete
+        )
+        rvTasks.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(context)
+        rvTasks.adapter = adapter
+
         btnAddTask.setOnClickListener {
             val title = etNewTask.text.toString().trim()
+            val minutesStr = etNewTaskMinutes.text.toString().trim()
+            val minutes = minutesStr.toIntOrNull() ?: 25
             if (title.isNotEmpty()) {
-                currentTaskTitle = title
-                currentTag = selectedTag
-                updateUI()
-                dialog.dismiss()
+                val newTask = PomoTask(title, minutes, "专注")
+                tasks.add(newTask)
+                saveUserTasks(context, tasks)
+                adapter?.notifyItemInserted(tasks.size - 1)
+                etNewTask.text.clear()
+                etNewTaskMinutes.text.clear()
+                rvTasks.scrollToPosition(tasks.size - 1)
+            } else {
+                Toast.makeText(context, "请输入任务名称", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -432,20 +591,144 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
         dialog.show()
     }
 
-    private fun loadTasksForSelection(tag: String): List<Pair<String, String>> {
-        val result = mutableListOf<Pair<String, String>>()
-        try {
-            for (task in PlanManager.getTodayPending()) {
-                result.add(task.title to "计划")
-            }
-        } catch (_: Exception) {}
-        for (defaultTag in FocusSession.DEFAULT_TAGS) {
-            if (tag.isEmpty() || tag == defaultTag) {
-                result.add("[$defaultTag] 学习" to defaultTag)
-            }
+    // ── 应用拦截 ──
+
+    private fun startAppBlocker() {
+        if (AppPreferences.isAppBlockerEnabled(requireContext())) {
+            AppBlockerService.start(requireContext())
         }
-        return result
     }
+
+    private fun stopAppBlocker() {
+        try { AppBlockerService.stop(requireContext()) } catch (_: Exception) {}
+    }
+
+    /**
+     * 检查并请求应用拦截所需的权限
+     * @return true 如果全部权限已授权；false 如果正在引导用户授权中
+     */
+    private fun checkAppBlockerPermissions(): Boolean {
+        val ctx = requireContext()
+        
+        // 1. 检查悬浮窗权限
+        if (!Settings.canDrawOverlays(ctx)) {
+            AlertDialog.Builder(ctx)
+                .setTitle("需要开启悬浮窗权限")
+                .setMessage("应用拦截需要悬浮窗权限才能显示拦截遮罩。\n\n请在接下来的设置页面中找到「显示在其他应用上层」并开启授权。")
+                .setPositiveButton("去开启") { _, _ ->
+                    startActivity(Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${ctx.packageName}")
+                    ))
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            return false
+        }
+
+        // 2. 检查查看使用情况权限
+        if (!hasUsageStatsPermission()) {
+            AlertDialog.Builder(ctx)
+                .setTitle("需要查看使用情况权限")
+                .setMessage("应用拦截需要「查看使用情况」权限才能读取前台应用包名。\n\n请在接下来的系统设置页面中找到「AI伴学」并开启授权。")
+                .setPositiveButton("去开启") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            return false
+        }
+
+        // 3. 通用「后台弹出界面/后台启动」权限检测（完美兼容小米、VIVO、OPPO、魅族等国产定制系统的底层的 OP_BACKGROUND_START_ACTIVITY）
+        if (!isBackgroundStartAllowed(ctx)) {
+            AlertDialog.Builder(ctx)
+                .setTitle(“需要开启后台弹出界面权限”)
+                .setMessage(“检测到您的手机系统限制了应用在后台弹出窗口。为了使番茄钟能在您使用违规应用时立即弹出拦截画面，请允许应用的「后台弹出界面」或「后台启动界面」权限。”)
+                .setPositiveButton(“去开启”) { _, _ ->
+                    // 1. 小米设备优先尝试精准跳转安全中心
+                    if (Build.MANUFACTURER.equals(“Xiaomi”, ignoreCase = true)) {
+                        try {
+                            val intent = Intent(“miui.intent.action.APP_PERM_EDITOR”).apply {
+                                setClassName(“com.miui.securitycenter”, “com.miui.permalink.MainActivity”)
+                                putExtra(“extra_pkgname”, ctx.packageName)
+                            }
+                            startActivity(intent)
+                            return@setPositiveButton
+                        } catch (_: Exception) {}
+                    }
+
+                    // 2. 其他国产设备或标准系统，兜底引导至应用管理详情页，方便用户在”权限管理”中点击开启
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = android.net.Uri.parse(“package:${ctx.packageName}”)
+                        }
+                        startActivity(intent)
+                    } catch (_: Exception) {
+                        Toast.makeText(ctx, “未找到对应设置，请在手机系统「设置」->「应用管理」中找到 AI伴学 并开启该权限”, Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton(“取消”, null)
+                .show()
+            return false
+        }
+
+        // 4. 检查忽略电池优化权限，防止后台进入冷冻（cgroup freeze）状态
+        if (!isIgnoringBatteryOptimizations(ctx)) {
+            AlertDialog.Builder(ctx)
+                .setTitle(“需要允许后台运行”)
+                .setMessage(“为了防止手机系统（如智能省电）在后台强行冷冻或关闭拦截功能，请在接下来的设置中为「AI伴学」选择「无限制」或「允许后台高能耗运行」。”)
+                .setPositiveButton(“去设置”) { _, _ ->
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = android.net.Uri.parse(“package:${ctx.packageName}”)
+                        }
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        startActivity(intent)
+                    }
+                }
+                .setNegativeButton(“取消”, null)
+                .show()
+            return false
+        }
+
+        return true
+    }
+
+    private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return pm.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val ctx = context ?: return false
+        val appOps = ctx.getSystemService(android.app.AppOpsManager::class.java) ?: return false
+        val mode = appOps.checkOpNoThrow(
+            android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            ctx.packageName
+        )
+        return mode == android.app.AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun isBackgroundStartAllowed(context: Context): Boolean {
+        return try {
+            val ops = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            val method = ops.javaClass.getMethod(
+                "checkOpNoThrow",
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType,
+                String::class.java
+            )
+            // OP_BACKGROUND_START_ACTIVITY (后台弹出界面) 在主流国产定制系统底层（MIUI/OriginOS/ColorOS/Flyme等）统一为 10021
+            val result = method.invoke(ops, 10021, android.os.Process.myUid(), context.packageName) as Int
+            result == android.app.AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) {
+            true // 发生反射或系统无此 AppOps 限制时默认放行（例如原生系统或三星默认就允许后台弹出界面），防误拦截
+        }
+    }
+
 
     // ── 白噪音 ──
 
@@ -496,13 +779,18 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
     // ── Adapter ──
 
     private class TaskSelectAdapter(
-        private val items: List<Pair<String, String>>,
-        private val onSelect: (String, String) -> Unit
+        private val items: List<PomoTask>,
+        private val onSelect: (PomoTask) -> Unit,
+        private val onEdit: (Int, PomoTask) -> Unit,
+        private val onDelete: (Int, PomoTask) -> Unit
     ) : androidx.recyclerview.widget.RecyclerView.Adapter<TaskSelectAdapter.VH>() {
 
         inner class VH(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
             val tvTitle: TextView = view.findViewById(R.id.tv_task_title)
-            val tvTag: TextView = view.findViewById(R.id.tv_task_tag)
+            val tvDuration: TextView = view.findViewById(R.id.tv_task_duration)
+            val btnWhitelist: View = view.findViewById(R.id.btn_task_whitelist)
+            val btnEdit: View = view.findViewById(R.id.btn_task_edit)
+            val btnDelete: View = view.findViewById(R.id.btn_task_delete)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -512,10 +800,28 @@ class PomodoroFragment : Fragment(), PomodoroTimer.TimerListener {
         }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
-            val (title, tag) = items[position]
-            holder.tvTitle.text = title
-            holder.tvTag.text = tag
-            holder.itemView.setOnClickListener { onSelect(title, tag) }
+            val task = items[position]
+            holder.tvTitle.text = task.title
+            holder.tvDuration.text = "时长: ${task.minutes}分钟"
+            holder.itemView.setOnClickListener { onSelect(task) }
+            
+            // 白名单
+            if (AppPreferences.isAppBlockerEnabled(holder.btnWhitelist.context)) {
+                holder.btnWhitelist.visibility = View.VISIBLE
+                val count = AppPreferences.getTaskWhitelist(holder.btnWhitelist.context, task.title).size
+                (holder.btnWhitelist as? TextView)?.text = if (count > 0) "白名单(${count})" else "白名单"
+                holder.btnWhitelist.setOnClickListener {
+                    AppBlockerSettingsActivity.start(holder.btnWhitelist.context, task.title)
+                }
+            } else {
+                holder.btnWhitelist.visibility = View.GONE
+            }
+
+            // 编辑
+            holder.btnEdit.setOnClickListener { onEdit(position, task) }
+
+            // 删除
+            holder.btnDelete.setOnClickListener { onDelete(position, task) }
         }
 
         override fun getItemCount() = items.size

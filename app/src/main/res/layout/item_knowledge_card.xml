@@ -1,13 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="1dp"
-    app:strokeWidth="0dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/border_light"
+    app:strokeWidth="1dp"
+    app:cardBackgroundColor="@color/background_card_glass"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground">
@@ -24,7 +25,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
-            android:buttonTint="#2563EB"
+            android:buttonTint="@color/primary"
             android:visibility="gone" />
 
         <LinearLayout
@@ -40,7 +41,7 @@
                 android:layout_height="wrap_content"
                 android:textSize="14sp"
                 android:textStyle="bold"
-                android:textColor="#1F2937"
+                android:textColor="@color/text_primary"
                 android:layout_marginBottom="4dp"
                 android:maxLines="2"
                 android:ellipsize="end" />
@@ -50,7 +51,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="12sp"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:lineSpacingMultiplier="1.3"
                 android:maxLines="4"
                 android:ellipsize="end" />
@@ -61,7 +62,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:textSize="10sp"
-                android:textColor="#9CA3AF"
+                android:textColor="@color/text_tertiary"
                 android:maxLines="1"
                 android:ellipsize="end" />
         </LinearLayout>

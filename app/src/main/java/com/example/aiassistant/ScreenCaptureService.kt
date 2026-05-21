@@ -87,10 +87,16 @@ class ScreenCaptureService : Service() {
 
     // ── 静默搜题 ──────────────────────────────────────────────────────
     internal var smallBallView: View? = null
+    internal var ballMenuView: View? = null
+    internal var dictOverlayView: View? = null
     internal var smallBallParams: WindowManager.LayoutParams? = null
     internal var silentSearchText: String? = null
     internal var silentSearchReady = false
     @Volatile internal var isSilentCapture = false
+
+    // ── 缓存截图上下文用于快捷切换重分析 ──
+    @Volatile internal var lastQuestionText: String? = null
+    @Volatile internal var lastCroppedBitmap: Bitmap? = null
 
     // ── PaddleOCR ─────────────────────────────────────────────────────
     internal var ocrAvailable = false
@@ -273,6 +279,8 @@ class ScreenCaptureService : Service() {
             try { unregisterReceiver(it) } catch (_: Exception) {}
             screenStateReceiver = null
         }
+        dismissDictionaryOverlay()
+        dismissBallMenu()
         removeFloatBall()
         removeSmallBall()
         removeAreaOverlay()
@@ -425,6 +433,8 @@ class ScreenCaptureService : Service() {
     // ═════════════════════════════════════════════════════════════════════
 
     private fun onScreenOff() {
+        dismissDictionaryOverlay()
+        dismissBallMenu()
         if (isCapturing) {
             Log.d(TAG, "Resetting isCapturing due to screen off")
             isCapturing = false
@@ -458,6 +468,23 @@ class ScreenCaptureService : Service() {
     // AI 管道
     // ═════════════════════════════════════════════════════════════════════
 
+    private fun recordWrongQuestionDirectly(text: String, originalBitmap: Bitmap) {
+        captureHandler?.post {
+            com.example.aiassistant.questionbank.WrongQuestionManager.addWrongQuestion(
+                this@ScreenCaptureService,
+                text,
+                originalBitmap
+            )
+            originalBitmap.recycle()
+            mainHandler.post {
+                isCapturing = false
+                isSilentCapture = false
+                cancelCaptureTimeout()
+                Toast.makeText(this@ScreenCaptureService, "📝 错题已成功录入错题本！", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     internal fun sendToAI(bitmap: Bitmap) {
         // 检查 MediaProjection 是否有效
         if (mediaProjection == null || imageReader == null || virtualDisplay == null) {
@@ -477,6 +504,27 @@ class ScreenCaptureService : Service() {
 
         val t0 = System.currentTimeMillis()
         val questionType = AppPreferences.getCurrentQuestionType(this)
+
+        // 错题直录模式下的图形推理题分流
+        if (AppPreferences.getFloatClickAction(this) == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
+            if (questionType.usesVision) {
+                captureHandler?.post {
+                    com.example.aiassistant.questionbank.WrongQuestionManager.addWrongQuestion(
+                        this@ScreenCaptureService,
+                        "[图形推理题]",
+                        bitmap
+                    )
+                    bitmap.recycle()
+                    mainHandler.post {
+                        isCapturing = false
+                        isSilentCapture = false
+                        cancelCaptureTimeout()
+                        Toast.makeText(this@ScreenCaptureService, "📝 图形错题已成功录入错题本！", Toast.LENGTH_LONG).show()
+                    }
+                }
+                return
+            }
+        }
 
         // 图形推理：跳过 OCR，直接发送图片给视觉模型
         if (questionType.usesVision) {
@@ -526,9 +574,16 @@ class ScreenCaptureService : Service() {
                     CloudOcrClient.parseText(bitmap = scaled, url = ocrUrl, token = ocrToken,
                         onSuccess = { rawText ->
                             if (currentRequestId != requestId) return@parseText
-                            recycleInput()
                             val cleanedText = rawText.lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
-                            if (cleanedText.isBlank()) { updateResultCard("❌ 云端 OCR 返回空文本"); return@parseText }
+                            if (cleanedText.isBlank()) { recycleInput(); updateResultCard("❌ 云端 OCR 返回空文本"); return@parseText }
+                            
+                            if (AppPreferences.getFloatClickAction(this@ScreenCaptureService) == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
+                                if (scaled !== bitmap) bitmap.recycle()
+                                recordWrongQuestionDirectly(cleanedText, scaled)
+                                return@parseText
+                            }
+
+                            recycleInput()
                             val ocrTime = System.currentTimeMillis() - t0
                             Log.d(TAG, "云端文字OCR完成: ${ocrTime}ms, 字数: ${cleanedText.length}")
                             showLoading("✅ 识别到 ${cleanedText.length} 个字 (${ocrTime}ms)\n正在请求 AI...")
@@ -539,9 +594,16 @@ class ScreenCaptureService : Service() {
                     CloudOcrClient.parseLayout(bitmap = scaled, url = ocrUrl, token = ocrToken,
                         onSuccess = { markdownText ->
                             if (currentRequestId != requestId) return@parseLayout
-                            recycleInput()
                             val cleanedText = markdownText.lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
-                            if (cleanedText.isBlank()) { updateResultCard("❌ 云端 OCR 返回空文本"); return@parseLayout }
+                            if (cleanedText.isBlank()) { recycleInput(); updateResultCard("❌ 云端 OCR 返回空文本"); return@parseLayout }
+
+                            if (AppPreferences.getFloatClickAction(this@ScreenCaptureService) == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
+                                if (scaled !== bitmap) bitmap.recycle()
+                                recordWrongQuestionDirectly(cleanedText, scaled)
+                                return@parseLayout
+                            }
+
+                            recycleInput()
                             val ocrTime = System.currentTimeMillis() - t0
                             Log.d(TAG, "云端布局OCR完成: ${ocrTime}ms, 字数: ${cleanedText.length}")
                             showLoading("✅ 识别到 ${cleanedText.length} 个字 (${ocrTime}ms)\n正在请求 AI...")
@@ -576,11 +638,14 @@ class ScreenCaptureService : Service() {
 
                 // OCR 成功，清除崩溃标记
                 prefs.edit().putBoolean("ocr_last_call_crashed", false).apply()
-                recycleInput()
 
-                if (currentRequestId != requestId) return@post
+                if (currentRequestId != requestId) {
+                    recycleInput()
+                    return@post
+                }
 
                 if (result == null) {
+                    recycleInput()
                     updateResultCard("❌ 文字识别失败")
                     return@post
                 }
@@ -589,6 +654,7 @@ class ScreenCaptureService : Service() {
                 val ocrText = result.text
 
                 if (ocrText.isBlank()) {
+                    recycleInput()
                     updateResultCard("❌ 未识别到文字，请重新截图")
                     return@post
                 }
@@ -598,6 +664,14 @@ class ScreenCaptureService : Service() {
                     .filter { it.isNotEmpty() }
                     .joinToString("\n")
 
+                if (AppPreferences.getFloatClickAction(this@ScreenCaptureService) == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
+                    prefs.edit().putBoolean("ocr_last_call_crashed", false).apply()
+                    if (scaled !== bitmap) bitmap.recycle()
+                    recordWrongQuestionDirectly(cleanedOcrText, scaled)
+                    return@post
+                }
+
+                recycleInput()
                 Log.d(TAG, "OCR完成: ${ocrTime}ms, 字数: ${cleanedOcrText.length}")
                 showLoading("✅ 识别到 ${cleanedOcrText.length} 个字 (${ocrTime}ms)\n正在请求 AI...")
 
@@ -867,6 +941,30 @@ class ScreenCaptureService : Service() {
         val count = retryCount.incrementAndGet()
         showLoading("渲染失败，第${count}次重试中...")
         requestVisionAnalysis(img, startTime, requestId)
+    }
+
+    internal fun reRunAnalysis() {
+        val qType = AppPreferences.getCurrentQuestionType(this)
+        val text = lastOcrText
+        val base64 = lastImageBase64
+        val requestId = System.currentTimeMillis()
+        currentRequestId = requestId
+        val t0 = System.currentTimeMillis()
+
+        if (qType.usesVision) {
+            if (!base64.isNullOrBlank()) {
+                requestVisionAnalysis(base64, t0, requestId)
+            } else {
+                Toast.makeText(this, "图片上下文失效，请重新截屏", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            if (!text.isNullOrBlank()) {
+                showLoading("正在切换配置重分析...")
+                requestAiAnalysis(text, t0, requestId)
+            } else {
+                Toast.makeText(this, "文本上下文失效，请重新截屏", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     /** Bitmap 转 JPEG 字节数组（质量 85%） */

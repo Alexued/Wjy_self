@@ -121,6 +121,7 @@ internal fun ScreenCaptureService.showResultCard() {
 
     resultCardParams = params
     windowManager.addView(resultCardView, params)
+    setupConfigToolbar(resultCardView!!)
 
     // 底部弹出动画：高度从0增长到目标高度，像从底部生长出来
     if (animate) {
@@ -354,6 +355,11 @@ internal fun ScreenCaptureService.removeResultCard() {
         try { windowManager.removeView(it) } catch (_: Exception) {}
         resultCardView = null
     }
+    lastCroppedBitmap?.let {
+        if (!it.isRecycled) it.recycle()
+    }
+    lastCroppedBitmap = null
+    lastQuestionText = null
     if (AppPreferences.isSilentSearchEnabled(this)) {
         silentSearchText = null
         silentSearchReady = false
@@ -747,6 +753,101 @@ internal fun ScreenCaptureService.exportCardAsImage(card: View) {
     } catch (e: Exception) {
         android.util.Log.e("ResultCard", "Export failed", e)
         android.widget.Toast.makeText(this, "导出失败：${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun ScreenCaptureService.setupConfigToolbar(card: android.view.View) {
+    val tvTeacher = card.findViewById<android.widget.TextView>(R.id.tv_active_teacher_float)
+    val tvType = card.findViewById<android.widget.TextView>(R.id.tv_active_type_float)
+
+    val panelTeacher = card.findViewById<android.view.View>(R.id.panel_switch_teacher)
+    val panelType = card.findViewById<android.view.View>(R.id.panel_switch_type)
+
+    val btnTeacher = card.findViewById<android.view.View>(R.id.btn_switch_teacher_float)
+    val btnType = card.findViewById<android.view.View>(R.id.btn_switch_type_float)
+
+    if (tvTeacher == null || tvType == null || panelTeacher == null || panelType == null || btnTeacher == null || btnType == null) {
+        return
+    }
+
+    // Bind current active values
+    tvTeacher.text = "👤 老师: ${TeacherManager.activeTeacher.name}"
+    tvType.text = "🏷️ 题型: ${AppPreferences.getCurrentQuestionType(this).displayName}"
+
+    btnTeacher.setOnClickListener {
+        if (panelTeacher.visibility == android.view.View.VISIBLE) {
+            panelTeacher.visibility = android.view.View.GONE
+        } else {
+            panelTeacher.visibility = android.view.View.VISIBLE
+            panelType.visibility = android.view.View.GONE
+            populateTeachersFloat(card)
+        }
+    }
+
+    btnType.setOnClickListener {
+        if (panelType.visibility == android.view.View.VISIBLE) {
+            panelType.visibility = android.view.View.GONE
+        } else {
+            panelType.visibility = android.view.View.VISIBLE
+            panelTeacher.visibility = android.view.View.GONE
+            populateTypesFloat(card)
+        }
+    }
+}
+
+private fun ScreenCaptureService.populateTeachersFloat(card: android.view.View) {
+    val container = card.findViewById<android.widget.LinearLayout>(R.id.container_teachers) ?: return
+    container.removeAllViews()
+    val activeId = TeacherManager.activeTeacher.id
+    for (t in TeacherManager.allTeachers) {
+        val item = android.widget.TextView(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(38)
+            )
+            text = if (t.id == activeId) "✓ ${t.name}" else "   ${t.name}"
+            textSize = 13f
+            setTextColor(if (t.id == activeId) 0xFF5C8271.toInt() else 0xFF3C3935.toInt())
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(24), 0, dpToPx(24), 0)
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            isClickable = true
+            isFocusable = true
+        }
+        item.setOnClickListener {
+            TeacherManager.switchTeacher(this, t.id)
+            card.findViewById<android.widget.TextView>(R.id.tv_active_teacher_float)?.text = "👤 老师: ${t.name}"
+            card.findViewById<android.view.View>(R.id.panel_switch_teacher)?.visibility = android.view.View.GONE
+            reRunAnalysis()
+        }
+        container.addView(item)
+    }
+}
+
+private fun ScreenCaptureService.populateTypesFloat(card: android.view.View) {
+    val container = card.findViewById<android.widget.LinearLayout>(R.id.container_types) ?: return
+    container.removeAllViews()
+    val activeType = AppPreferences.getCurrentQuestionType(this)
+    for (type in QuestionType.entries) {
+        val item = android.widget.TextView(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(38)
+            )
+            text = if (type == activeType) "✓ ${type.displayName}" else "   ${type.displayName}"
+            textSize = 13f
+            setTextColor(if (type == activeType) 0xFF5C8271.toInt() else 0xFF3C3935.toInt())
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpToPx(24), 0, dpToPx(24), 0)
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            isClickable = true
+            isFocusable = true
+        }
+        item.setOnClickListener {
+            AppPreferences.setCurrentQuestionType(this, type)
+            card.findViewById<android.widget.TextView>(R.id.tv_active_type_float)?.text = "🏷️ 题型: ${type.displayName}"
+            card.findViewById<android.view.View>(R.id.panel_switch_type)?.visibility = android.view.View.GONE
+            reRunAnalysis()
+        }
+        container.addView(item)
     }
 }
 

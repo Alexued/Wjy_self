@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F9FAFB"
+    android:background="@color/background"
     android:fitsSystemWindows="true">
 
     <LinearLayout
@@ -18,8 +19,8 @@
             android:gravity="center_vertical"
             android:paddingStart="4dp"
             android:paddingEnd="12dp"
-            android:background="#FFFFFF"
-            android:elevation="2dp">
+            android:background="@color/background"
+            android:elevation="0dp">
 
             <TextView
                 android:id="@+id/btn_back"
@@ -27,7 +28,7 @@
                 android:layout_height="48dp"
                 android:text="←"
                 android:textSize="20sp"
-                android:textColor="#374151"
+                android:textColor="@color/text_primary"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackgroundBorderless" />
 
@@ -38,7 +39,7 @@
                 android:layout_weight="1"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#1F2937" />
+                android:textColor="@color/text_primary" />
 
             <TextView
                 android:id="@+id/btn_batch_delete"
@@ -59,7 +60,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="全选"
-                android:textColor="#2563EB"
+                android:textColor="@color/primary"
                 android:textSize="14sp"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
@@ -73,7 +74,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="导出"
-                android:textColor="#2563EB"
+                android:textColor="@color/primary"
                 android:textSize="14sp"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
@@ -92,7 +93,7 @@
             android:paddingEnd="12dp"
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
-            android:background="#FFFFFF">
+            android:background="@color/background">
 
             <EditText
                 android:id="@+id/et_search"
@@ -100,6 +101,8 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:hint="搜索标题或内容"
+                android:textColorHint="@color/text_tertiary"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
@@ -114,7 +117,7 @@
                 android:layout_height="40dp"
                 android:text="▦"
                 android:textSize="18sp"
-                android:textColor="#6B7280"
+                android:textColor="@color/text_secondary"
                 android:gravity="center"
                 android:layout_marginStart="8dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless" />
@@ -130,7 +133,7 @@
             android:paddingTop="4dp"
             android:paddingBottom="4dp"
             android:textSize="12sp"
-            android:textColor="#9CA3AF" />
+            android:textColor="@color/text_tertiary" />
 
         <!-- 卡片列表 -->
         <androidx.recyclerview.widget.RecyclerView
@@ -158,7 +161,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="暂无卡片\n点击右下角添加"
-            android:textColor="#9CA3AF"
+            android:textColor="@color/text_tertiary"
             android:textSize="15sp"
             android:lineSpacingMultiplier="1.4"
             android:visibility="gone" />

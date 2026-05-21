@@ -3,39 +3,51 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- App 主色调 — 蓝色系 -->
-    <color name="primary">#3B82F6</color>
-    <color name="primary_dark">#2563EB</color>
-    <color name="primary_light">#60A5FA</color>
-    <color name="primary_bg">#EBF2FF</color>
+    <!-- App 核心品牌色 — 禅意静心茶绿 (Sage & Matcha Green) -->
+    <color name="primary">#5C8271</color>
+    <color name="primary_dark">#3C5A4E</color>
+    <color name="primary_light">#88A798</color>
+    <color name="primary_bg">#F4EFEB</color>
 
-    <!-- 页面背景 -->
-    <color name="background">#F0F4FA</color>
+    <!-- 温馨暖沙原木背景体系 (Warm Linen & Sand Beige) -->
+    <color name="background">#FAF7F2</color>
+    <color name="background_card">#FFFFFF</color>
+    <color name="background_card_glass">#FCFAF7</color>
 
-    <!-- 文字颜色 -->
-    <color name="text_primary">#1A1A2E</color>
-    <color name="text_secondary">#6B7280</color>
-    <color name="text_tertiary">#9CA3AF</color>
+    <!-- 禅风极极简文字颜色系统 (Warm Deep Stone & Charcoal) -->
+    <color name="text_primary">#3C3935</color>
+    <color name="text_secondary">#7A7065</color>
+    <color name="text_tertiary">#AFA599</color>
 
-    <!-- 悬浮卡片颜色 — 白底清爽风格 -->
-    <color name="card_bg">#FFFFFF</color>
-    <color name="card_header_bg">#FFFFFF</color>
-    <color name="card_divider">#E5E7EB</color>
-    <color name="card_loading_text">#6B7280</color>
-    <color name="card_result_text">#374151</color>
-    <color name="card_close_btn">#9CA3AF</color>
-    <color name="card_title_text">#1F2937</color>
+    <!-- 柔和纸张边缘描边与阴影 (Soft Sandstone Borders) -->
+    <color name="border_light">#EAE1D4</color>
+    <color name="border_glass">#DFD5C6</color>
+    <color name="shadow_color">#0A3C3935</color>
 
-    <!-- 状态颜色 -->
-    <color name="correct_green">#10B981</color>
-    <color name="correct_green_bg">#ECFDF5</color>
-    <color name="correct_green_border">#A7F3D0</color>
-    <color name="incorrect_red">#EF4444</color>
-    <color name="incorrect_red_bg">#FEF2F2</color>
-    <color name="incorrect_red_border">#FECACA</color>
+    <!-- 悬浮卡片专用体系 (Warm Soft Paper) -->
+    <color name="card_bg">#FCFAF7</color>
+    <color name="card_header_bg">#FAF7F2</color>
+    <color name="card_divider">#EAE1D4</color>
+    <color name="card_loading_text">#7A7065</color>
+    <color name="card_result_text">#3C3935</color>
+    <color name="card_close_btn">#AFA599</color>
+    <color name="card_title_text">#3C3935</color>
 
-    <!-- Tag 颜色 -->
-    <color name="tag_blue_bg">#EFF6FF</color>
-    <color name="tag_blue_text">#2563EB</color>
-    <color name="tag_blue_border">#BFDBFE</color>
+    <!-- 温馨柿红专注系统色彩 (Soft Persimmon & Peach) -->
+    <color name="pomodoro_red">#D97A68</color>
+    <color name="pomodoro_red_light">#ECA294</color>
+    <color name="pomodoro_orange">#E08E79</color>
+
+    <!-- 答题正确/错误高阶状态色彩 (Soft Matcha & Terracotta) -->
+    <color name="correct_green">#6E8B75</color>
+    <color name="correct_green_bg">#1A6E8B75</color>
+    <color name="correct_green_border">#2A6E8B75</color>
+    <color name="incorrect_red">#D97A68</color>
+    <color name="incorrect_red_bg">#1AD97A68</color>
+    <color name="incorrect_red_border">#2AD97A68</color>
+
+    <!-- 标签专用配色 -->
+    <color name="tag_blue_bg">#F2ECE4</color>
+    <color name="tag_blue_text">#5C8271</color>
+    <color name="tag_blue_border">#D5C4B1</color>
 </resources>

@@ -13,19 +13,21 @@
         android:padding="16dp">
 
         <!-- ===== 悬浮球开关卡片 ===== -->
-        <androidx.cardview.widget.CardView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="#FFFFFF">
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_light"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="16dp"
+                android:padding="20dp"
                 android:gravity="center_vertical">
 
                 <LinearLayout
@@ -38,7 +40,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="开启悬浮球"
-                        android:textSize="17sp"
+                        android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary" />
 
@@ -46,7 +48,7 @@
                         android:id="@+id/tv_float_status"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="6dp"
                         android:text="未启动"
                         android:textSize="13sp"
                         android:textColor="@color/text_secondary" />
@@ -58,22 +60,130 @@
                     android:layout_height="wrap_content"
                     android:checked="false" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===== 题型选择卡片 ===== -->
-        <androidx.cardview.widget.CardView
+        <!-- ===== 错题本与悬浮球行为卡片 ===== -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="#FFFFFF">
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_light"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
+
+                <!-- 错题本入口 -->
+                <LinearLayout
+                    android:id="@+id/btn_wrong_questions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="我的错题本"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tv_wrong_stats"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="共 0 道错题 · 0 道未总结"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/text_secondary" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/card_divider"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 悬浮球单击行为选择 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="悬浮球单击动作"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="12dp" />
+
+                <RadioGroup
+                    android:id="@+id/rg_float_action"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/rb_action_ai"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🔍 AI 智能分析"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:buttonTint="@color/primary" />
+
+                    <RadioButton
+                        android:id="@+id/rb_action_record"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📝 记录错题"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:buttonTint="@color/primary" />
+                </RadioGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+
+        <!-- ===== 题型选择卡片 ===== -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_light"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/background_card_glass">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
 
                 <!-- 当前老师 -->
                 <LinearLayout
@@ -100,8 +210,9 @@
                             android:id="@+id/tv_active_teacher"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
                             android:text="花生老师"
-                            android:textSize="16sp"
+                            android:textSize="18sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
                     </LinearLayout>
@@ -114,20 +225,20 @@
                         android:textSize="12sp"
                         app:cornerRadius="8dp"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:textColor="@color/primary_dark" />
+                        android:textColor="@color/primary" />
                 </LinearLayout>
 
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
-                    android:background="#EEEEEE"
-                    android:layout_marginBottom="12dp" />
+                    android:background="@color/card_divider"
+                    android:layout_marginBottom="16dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="当前题型"
-                    android:textSize="17sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@color/text_primary"
                     android:layout_marginBottom="12dp" />
@@ -145,428 +256,58 @@
                         android:gravity="center_vertical" />
                 </HorizontalScrollView>
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===== 截图模式卡片 ===== -->
-        <androidx.cardview.widget.CardView
+        <!-- ===== 题库模块列表 ===== -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="#FFFFFF">
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_light"
+            app:strokeWidth="1dp"
+            app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="截图模式"
-                    android:textSize="17sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
-
-                <RadioGroup
-                    android:id="@+id/rg_capture_mode"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <RadioButton
-                        android:id="@+id/rb_custom_area"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="自定义区域截图（每次手动框选）"
-                        android:textSize="14sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:layout_marginBottom="8dp" />
-
-                    <RadioButton
-                        android:id="@+id/rb_fixed_area"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="固定区域截图（首次框选后沿用）"
-                        android:textSize="14sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp" />
-                </RadioGroup>
-
-                <LinearLayout
-                    android:id="@+id/layout_fixed_info"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginTop="8dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/tv_fixed_status"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="尚未设定固定区域"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_secondary" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_clear_fixed"
-                        android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:text="重新选择"
-                        android:textSize="12sp"
-                        app:cornerRadius="8dp"
-                        style="@style/Widget.MaterialComponents.Button.TextButton" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- ===== 显示设置卡片 ===== -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="#FFFFFF">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- 默认全屏 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="默认全屏显示"
-                            android:textSize="17sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="AI 答案卡片默认使用全屏模式"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_secondary" />
-                    </LinearLayout>
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_default_fullscreen"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="#EEEEEE"
-                    android:layout_marginTop="12dp"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- 卡片弹出方式 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="卡片弹出方式"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:id="@+id/tv_card_mode_desc"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="自由悬浮"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_secondary" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/btn_card_mode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:gravity="center"
-                        android:text="切换"
-                        android:textSize="13sp"
-                        android:textColor="@color/primary"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:paddingStart="16dp"
-                        android:paddingEnd="16dp" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="#EEEEEE"
-                    android:layout_marginTop="12dp"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- 静默搜题 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="静默搜题"
-                            android:textSize="17sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="后台处理，完成后再点击查看答案"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_secondary" />
-                    </LinearLayout>
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switch_silent_search"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="#EEEEEE"
-                    android:layout_marginTop="12dp"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- 悬浮球大小 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="悬浮球大小"
-                            android:textSize="15sp"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:id="@+id/tv_ball_size_val"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="60dp"
-                            android:textSize="14sp"
-                            android:textColor="@color/primary"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <SeekBar
-                        android:id="@+id/sb_ball_size"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:max="120"
-                        android:progress="60" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- ===== 多轮推理策略卡片 ===== -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="#FFFFFF">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="4dp">
+                    android:layout_marginBottom="16dp">
+
                     <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="多轮推理策略"
-                        android:textSize="17sp"
+                        android:text="题库"
+                        android:textSize="18sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary" />
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_edit_strategy"
+
+                    <TextView
+                        android:id="@+id/tv_total_count"
                         android:layout_width="wrap_content"
-                        android:layout_height="32dp"
-                        android:text="编辑方案"
-                        android:textSize="11sp"
-                        app:cornerRadius="6dp"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:textColor="@color/primary_dark" />
+                        android:layout_height="wrap_content"
+                        android:text="加载中..."
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary" />
                 </LinearLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="两轮独立思考 + 第三轮验证，提高答案准确率"
-                    android:textSize="12sp"
-                    android:textColor="@color/text_secondary"
-                    android:layout_marginBottom="12dp" />
-
-                <RadioGroup
-                    android:id="@+id/rg_multi_pass_strategy"
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_modules"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <RadioButton
-                        android:id="@+id/rb_strategy_single"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="单轮推理"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:layout_marginBottom="4dp" />
-
-                    <RadioButton
-                        android:id="@+id/rb_strategy_standard"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="标准双审（两轮独立推理，第三轮验证）"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:layout_marginBottom="4dp" />
-
-                    <RadioButton
-                        android:id="@+id/rb_strategy_self_check"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="自检双审（第二轮自我纠错，第三轮验证）"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:layout_marginBottom="4dp" />
-
-                    <RadioButton
-                        android:id="@+id/rb_strategy_custom_r2"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="自定义第二轮提示词"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_primary"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp" />
-                </RadioGroup>
-
-                <!-- 自定义 R2 prompt -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/layout_custom_r2_prompt"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone"
-                    android:hint="自定义第二轮 System Prompt"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/et_custom_r2_prompt"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="4"
-                        android:maxLines="8"
-                        android:inputType="textMultiLine"
-                        android:gravity="top"
-                        android:textSize="13sp"
-                        android:hint="在此编写第二轮推理的完整 System Prompt..." />
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <!-- 自检指令 -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/layout_self_check_instruction"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:visibility="gone"
-                    android:hint="自定义自检指令（将追加到默认提示词末尾）"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/et_self_check_instruction"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="3"
-                        android:maxLines="6"
-                        android:inputType="textMultiLine"
-                        android:gravity="top"
-                        android:textSize="13sp" />
-                </com.google.android.material.textfield.TextInputLayout>
+                    android:nestedScrollingEnabled="false"
+                    android:overScrollMode="never" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
 </ScrollView>

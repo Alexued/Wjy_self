@@ -1,7 +1,11 @@
 package com.example.aiassistant
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -19,10 +23,9 @@ import com.example.aiassistant.plan.PlanFragment
 import com.example.aiassistant.plan.PlanManager
 import com.example.aiassistant.pomodoro.PomodoroFragment
 import com.example.aiassistant.pomodoro.PomodoroManager
-import com.example.aiassistant.questionbank.QuestionBankFragment
+import com.example.aiassistant.dictionary.DictionaryManager
 import com.example.aiassistant.questionbank.QuestionBankManager
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.android.material.switchmaterial.SwitchMaterial
 
 class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
 
@@ -35,7 +38,6 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
     private var knowledgeFragment: KnowledgeCardFragment? = null
     private var planFragment: PlanFragment? = null
     private var pomodoroFragment: PomodoroFragment? = null
-    private var questionBankFragment: QuestionBankFragment? = null
     private var activeFragment: Fragment? = null
 
     /** 悬浮窗权限 → 返回后继续录屏权限 */
@@ -80,6 +82,8 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         StrategyManager.init(this)
         // 初始化题库（后台加载）
         QuestionBankManager.init(this)
+        // 初始化词典（后台加载）
+        DictionaryManager.init(this)
         // 初始化知识卡片
         KnowledgeCardManager.init(this)
         // 初始化计划表
@@ -88,6 +92,14 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         PomodoroManager.init(this)
 
         setupBottomNav()
+
+        // 注册 moveToBack 广播（AppBlockerService 在 overlay 被 Activity 盖住时发送）
+        val moveBackFilter = IntentFilter("com.example.aiassistant.MOVE_TO_BACK")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(moveToBackReceiver, moveBackFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(moveToBackReceiver, moveBackFilter)
+        }
 
         // 处理启动 Intent（通知点击 / 悬浮球跳转）
         if (intent != null) handleIntent(intent)
@@ -120,7 +132,6 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_home -> { showFragment(getOrCreateHomeFragment()); true }
-                R.id.nav_question_bank -> { showFragment(getOrCreateQuestionBankFragment()); true }
                 R.id.nav_knowledge -> { showFragment(getOrCreateKnowledgeFragment()); true }
                 R.id.nav_plan -> { showFragment(getOrCreatePlanFragment()); true }
                 R.id.nav_pomodoro -> { showFragment(getOrCreatePomodoroFragment()); true }
@@ -159,7 +170,6 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         is KnowledgeCardFragment -> "knowledge"
         is PlanFragment -> "plan"
         is PomodoroFragment -> "pomodoro"
-        is QuestionBankFragment -> "question_bank"
         else -> f.javaClass.simpleName
     }
 
@@ -210,13 +220,6 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
             pomodoroFragment = supportFragmentManager.findFragmentByTag("pomodoro") as? PomodoroFragment ?: PomodoroFragment()
         }
         return pomodoroFragment!!
-    }
-
-    private fun getOrCreateQuestionBankFragment(): Fragment {
-        if (questionBankFragment == null) {
-            questionBankFragment = supportFragmentManager.findFragmentByTag("question_bank") as? QuestionBankFragment ?: QuestionBankFragment()
-        }
-        return questionBankFragment!!
     }
 
     // ── ServiceControlListener 实现 ───────────────────────────────────
@@ -275,5 +278,17 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         stopService(serviceIntent)
         AppPreferences.setFloatEnabled(this, false)
         Toast.makeText(this, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
+    }
+
+    // ── 应用拦截：overlay 被 Activity 盖住时，将 Activity 移到后台 ──
+    private val moveToBackReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            moveTaskToBack(true)
+        }
+    }
+
+    override fun onDestroy() {
+        try { unregisterReceiver(moveToBackReceiver) } catch (_: Exception) {}
+        super.onDestroy()
     }
 }

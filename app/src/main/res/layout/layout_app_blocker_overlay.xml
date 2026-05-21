@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#E60F172A"> <!-- 90% 不透明的极客暗黑夜幕蓝背景 -->
+
+    <LinearLayout
+        android:layout_width="310dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:background="@drawable/bg_overlay_premium_card"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="32dp"
+        android:elevation="12dp">
+
+        <!-- 柔光渐变番茄环 -->
+        <FrameLayout
+            android:layout_width="84dp"
+            android:layout_height="84dp"
+            android:background="@drawable/bg_pomodoro_icon_circle"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="🍅"
+                android:textSize="40sp" />
+        </FrameLayout>
+
+        <!-- 主标题：高级排版 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="进入高效专注空间"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#0F172A"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 副标题：动态包名显示 -->
+        <TextView
+            android:id="@+id/tv_blocked_app"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="应用已暂时拦截"
+            android:textSize="14sp"
+            android:textColor="#64748B"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 优雅名言微修饰 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="“ 保持耐心，专注成就卓越 ”"
+            android:textSize="12sp"
+            android:textColor="#94A3B8"
+            android:textStyle="italic"
+            android:layout_marginBottom="32dp" />
+
+        <!-- 主操作动作：返回番茄钟 -->
+        <TextView
+            android:id="@+id/btn_back_to_pomodoro"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="返回专注"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/bg_premium_pill_gradient"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- 辅助操作动作：终止专注 -->
+        <TextView
+            android:id="@+id/btn_stop_focus"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:text="结束专注"
+            android:textSize="14sp"
+            android:textColor="#64748B"
+            android:background="@drawable/bg_premium_pill_stroke"
+            android:clickable="true"
+            android:focusable="true" />
+
+    </LinearLayout>
+</FrameLayout>
