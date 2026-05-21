@@ -13,8 +13,24 @@ data class WrongQuestion(
     val imagePath: String,
     val timestamp: Long,
     var isSummarized: Boolean,
-    var summary: String = ""
-)
+    var summary: String = "",
+    // 题库匹配数据（命中题库时填充）
+    val bankQuestionId: String = "",
+    val bankStem: String = "",
+    val bankOptions: List<String> = emptyList(),
+    val bankAnswer: String = "",
+    val bankAnalysis: String = ""
+) {
+    /** 是否来自题库 */
+    val isFromBank: Boolean get() = bankQuestionId.isNotEmpty()
+
+    /** 列表摘要：题库题取题干前60字，OCR题取原文前60字 */
+    val displaySummary: String
+        get() {
+            val text = if (isFromBank) bankStem else questionText
+            return if (text.length > 60) text.take(60) + "..." else text
+        }
+}
 
 object WrongQuestionManager {
     private const val PREFS_NAME = "wrong_questions_prefs"
@@ -29,14 +45,26 @@ object WrongQuestionManager {
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
+                val bankOptions = mutableListOf<String>()
+                val optArr = obj.optJSONArray("bankOptions")
+                if (optArr != null) {
+                    for (j in 0 until optArr.length()) {
+                        bankOptions.add(optArr.getString(j))
+                    }
+                }
                 result.add(
                     WrongQuestion(
                         id = obj.getString("id"),
                         questionText = obj.getString("questionText"),
                         imagePath = obj.optString("imagePath", ""),
                         timestamp = obj.getLong("timestamp"),
-                        isSummarized = obj.getBoolean("isSummarized"),
-                        summary = obj.optString("summary", "")
+                        isSummarized = obj.optBoolean("isSummarized", false),
+                        summary = obj.optString("summary", ""),
+                        bankQuestionId = obj.optString("bankQuestionId", ""),
+                        bankStem = obj.optString("bankStem", ""),
+                        bankOptions = bankOptions,
+                        bankAnswer = obj.optString("bankAnswer", ""),
+                        bankAnalysis = obj.optString("bankAnalysis", "")
                     )
                 )
             }
@@ -46,24 +74,37 @@ object WrongQuestionManager {
         return result.sortedByDescending { it.timestamp }
     }
 
+    /** 从题库数据录入错题 */
     @Synchronized
-    fun addWrongQuestion(context: Context, questionText: String, bitmap: Bitmap?): WrongQuestion {
+    fun addFromBank(context: Context, question: Question, bitmap: Bitmap?): WrongQuestion {
         val id = System.currentTimeMillis().toString()
-        var imagePath = ""
-        if (bitmap != null) {
-            try {
-                val dir = File(context.filesDir, "wrong_questions")
-                if (!dir.exists()) dir.mkdirs()
-                val file = File(dir, "wq_$id.jpg")
-                val fos = FileOutputStream(file)
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
-                fos.flush()
-                fos.close()
-                imagePath = file.absolutePath
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        val imagePath = saveBitmap(context, id, bitmap)
+        val optionTexts = question.options.map { it.text }
+
+        val newQuestion = WrongQuestion(
+            id = id,
+            questionText = question.stem,
+            imagePath = imagePath,
+            timestamp = System.currentTimeMillis(),
+            isSummarized = false,
+            bankQuestionId = question.id,
+            bankStem = question.stem,
+            bankOptions = optionTexts,
+            bankAnswer = question.answer,
+            bankAnalysis = question.analysis
+        )
+
+        val list = getWrongQuestions(context).toMutableList()
+        list.add(0, newQuestion)
+        saveList(context, list)
+        return newQuestion
+    }
+
+    /** 从 OCR 文本录入错题（题库未命中时） */
+    @Synchronized
+    fun addFromOcr(context: Context, questionText: String, bitmap: Bitmap?): WrongQuestion {
+        val id = System.currentTimeMillis().toString()
+        val imagePath = saveBitmap(context, id, bitmap)
 
         val newQuestion = WrongQuestion(
             id = id,
@@ -77,6 +118,23 @@ object WrongQuestionManager {
         list.add(0, newQuestion)
         saveList(context, list)
         return newQuestion
+    }
+
+    private fun saveBitmap(context: Context, id: String, bitmap: Bitmap?): String {
+        if (bitmap == null) return ""
+        return try {
+            val dir = File(context.filesDir, "wrong_questions")
+            if (!dir.exists()) dir.mkdirs()
+            val file = File(dir, "wq_$id.jpg")
+            val fos = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+            fos.flush()
+            fos.close()
+            file.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ""
+        }
     }
 
     @Synchronized
@@ -117,6 +175,13 @@ object WrongQuestionManager {
                     put("timestamp", q.timestamp)
                     put("isSummarized", q.isSummarized)
                     put("summary", q.summary)
+                    put("bankQuestionId", q.bankQuestionId)
+                    put("bankStem", q.bankStem)
+                    put("bankAnswer", q.bankAnswer)
+                    put("bankAnalysis", q.bankAnalysis)
+                    val optArr = JSONArray()
+                    for (opt in q.bankOptions) optArr.put(opt)
+                    put("bankOptions", optArr)
                 }
                 arr.put(obj)
             }

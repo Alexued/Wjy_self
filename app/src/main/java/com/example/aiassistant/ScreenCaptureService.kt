@@ -29,6 +29,7 @@ import androidx.core.app.NotificationCompat
 import com.equationl.ncnnandroidppocr.OCR
 import com.equationl.ncnnandroidppocr.bean.Device
 import com.example.aiassistant.questionbank.QuestionBankManager
+import com.example.aiassistant.questionbank.WrongQuestionManager
 import com.equationl.ncnnandroidppocr.bean.DrawModel
 import com.equationl.ncnnandroidppocr.bean.ImageSize
 import com.equationl.ncnnandroidppocr.bean.ModelType
@@ -477,17 +478,22 @@ class ScreenCaptureService : Service() {
 
     private fun recordWrongQuestionDirectly(text: String, originalBitmap: Bitmap) {
         captureHandler?.post {
-            com.example.aiassistant.questionbank.WrongQuestionManager.addWrongQuestion(
-                this@ScreenCaptureService,
-                text,
-                originalBitmap
-            )
+            // 先搜题库，命中则用题库结构化数据
+            val bankMatch = QuestionBankManager.search(text)
+            if (bankMatch != null) {
+                WrongQuestionManager.addFromBank(this@ScreenCaptureService, bankMatch, originalBitmap)
+                Log.d(TAG, "错题录入：命中题库 ${bankMatch.id}")
+            } else {
+                WrongQuestionManager.addFromOcr(this@ScreenCaptureService, text, originalBitmap)
+                Log.d(TAG, "错题录入：题库未命中，保存OCR文本")
+            }
             originalBitmap.recycle()
             mainHandler.post {
                 isCapturing = false
                 isSilentCapture = false
                 cancelCaptureTimeout()
-                Toast.makeText(this@ScreenCaptureService, "📝 错题已成功录入错题本！", Toast.LENGTH_LONG).show()
+                val msg = if (bankMatch != null) "📝 错题已录入（来自题库）" else "📝 错题已录入（OCR识别）"
+                Toast.makeText(this@ScreenCaptureService, msg, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -516,7 +522,7 @@ class ScreenCaptureService : Service() {
         if (AppPreferences.getFloatClickAction(this) == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
             if (questionType.usesVision) {
                 captureHandler?.post {
-                    com.example.aiassistant.questionbank.WrongQuestionManager.addWrongQuestion(
+                    WrongQuestionManager.addFromOcr(
                         this@ScreenCaptureService,
                         "[图形推理题]",
                         bitmap

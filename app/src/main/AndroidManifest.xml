@@ -76,6 +76,12 @@
             android:exported="false"
             android:theme="@style/Theme.AIAssistant" />
 
+        <!-- 错题详情 -->
+        <activity
+            android:name=".questionbank.WrongQuestionDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIAssistant" />
+
         <!-- 番茄钟设置 -->
         <activity
             android:name=".pomodoro.PomodoroSettingsActivity"
