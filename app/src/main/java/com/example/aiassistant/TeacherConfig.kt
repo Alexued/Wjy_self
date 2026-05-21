@@ -14,7 +14,7 @@ data class TeacherConfig(
     val prompts: Map<QuestionType, String>,
     val r3Prompt: String,
     val selfCheckInstruction: String,
-    val defaultStrategy: Int = AppPreferences.STRATEGY_STANDARD,
+    val defaultStrategy: Int = 0,
     val customR2Prompts: Map<QuestionType, String> = emptyMap()
 ) {
     companion object {
@@ -42,7 +42,7 @@ data class TeacherConfig(
                 prompts = promptsMap,
                 r3Prompt = json.optString("r3_prompt", ""),
                 selfCheckInstruction = json.optString("self_check_instruction", ""),
-                defaultStrategy = json.optInt("default_strategy", AppPreferences.STRATEGY_STANDARD),
+                defaultStrategy = json.optInt("default_strategy", 0),
                 customR2Prompts = customR2Map
             )
         }

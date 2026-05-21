@@ -125,9 +125,9 @@ object WrongQuestionManager {
         return try {
             val dir = File(context.filesDir, "wrong_questions")
             if (!dir.exists()) dir.mkdirs()
-            val file = File(dir, "wq_$id.jpg")
+            val file = File(dir, "wq_$id.png")
             val fos = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
             fos.flush()
             fos.close()
             file.absolutePath

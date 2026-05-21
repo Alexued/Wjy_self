@@ -14,7 +14,6 @@ import com.example.aiassistant.AiModelConfig
 import com.example.aiassistant.AppPreferences
 import com.example.aiassistant.ModelManager
 import com.example.aiassistant.R
-import com.example.aiassistant.StrategyManager
 import com.example.aiassistant.TeacherManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -36,15 +35,6 @@ class AiModelFragment : Fragment() {
     private lateinit var switchSilentSearch: SwitchMaterial
     private lateinit var sbBallSize: SeekBar
     private lateinit var tvBallSizeVal: TextView
-
-    // 多轮推理策略
-    private lateinit var rgMultiPassStrategy: RadioGroup
-    private lateinit var layoutCustomR2Prompt: View
-    private lateinit var etCustomR2Prompt: TextInputEditText
-    private lateinit var layoutSelfCheckInstruction: View
-    private lateinit var etSelfCheckInstruction: TextInputEditText
-    private lateinit var btnEditStrategy: MaterialButton
-
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? =
         inflater.inflate(R.layout.fragment_ai_model, container, false)
 
@@ -55,10 +45,9 @@ class AiModelFragment : Fragment() {
         rv = view.findViewById(R.id.rv_model_list)
         rv.layoutManager = LinearLayoutManager(requireContext())
         view.findViewById<MaterialButton>(R.id.btn_add_model).setOnClickListener { showEditDialog(null) }
-        view.findViewById<MaterialButton>(R.id.btn_prompt_manage).setOnClickListener {
-            (requireActivity() as MainActivity).showFragment(
-                (requireActivity() as MainActivity).getOrCreatePromptFragment()
-            )
+        
+        view.findViewById<MaterialButton>(R.id.btn_teacher_manage).setOnClickListener {
+            showTeacherDialog()
         }
 
         bindSettingsViews(view)
@@ -74,9 +63,27 @@ class AiModelFragment : Fragment() {
     // ── AI 模型管理 ──────────────────────────────────────────────────
 
     private fun refreshModelList() {
-        adapter = ModelAdapter(ModelManager.allModels.toList(),
+        val ctx = requireContext()
+        var activeModelId = AppPreferences.getActiveModelId(ctx)
+        
+        // 如果当前没有设置过首选模型，且模型列表不为空，自动以第一个模型作为默认启用模型
+        val allModels = ModelManager.allModels
+        if (activeModelId.isEmpty() && allModels.isNotEmpty()) {
+            activeModelId = allModels.first().id
+            AppPreferences.setActiveModelId(ctx, activeModelId)
+        }
+        
+        adapter = ModelAdapter(
+            items = allModels.toList(),
+            activeModelId = activeModelId,
+            onSelect = { selectedModel ->
+                AppPreferences.setActiveModelId(ctx, selectedModel.id)
+                Toast.makeText(ctx, "已启用大模型「${selectedModel.name}」作为分析主模型！", Toast.LENGTH_SHORT).show()
+                refreshModelList()
+            },
             onEdit = { showEditDialog(it) },
-            onDelete = { showDeleteConfirm(it) })
+            onDelete = { showDeleteConfirm(it) }
+        )
         rv.adapter = adapter
     }
 
@@ -91,6 +98,51 @@ class AiModelFragment : Fragment() {
         val etKey = form.findViewById<TextInputEditText>(R.id.et_model_key)
         val etModel = form.findViewById<TextInputEditText>(R.id.et_model_id)
         val swThink = form.findViewById<SwitchMaterial>(R.id.sw_model_thinking)
+        val swVision = form.findViewById<SwitchMaterial>(R.id.sw_model_vision)
+        val spApiType = form.findViewById<Spinner>(R.id.sp_model_api_type)
+        
+        // 获取分段选择器控件与包含容器
+        val layoutBudgetGroup = form.findViewById<View>(R.id.layout_thinking_budget_group)
+        val toggleBudget = form.findViewById<com.google.android.material.button.MaterialButtonToggleGroup>(R.id.toggle_thinking_budget)
+        
+        // 联动：只有默认开启思考模式时，才展示思考强度选择器
+        swThink.setOnCheckedChangeListener { _, isChecked ->
+            layoutBudgetGroup.visibility = if (isChecked) View.VISIBLE else View.GONE
+        }
+
+        val tilUrl = form.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_model_url)
+        val tilModel = form.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.til_model_id)
+
+        val apiTypes = arrayOf("OpenAI", "Anthropic", "Gemini")
+        val apiAdapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item, apiTypes)
+        apiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spApiType.adapter = apiAdapter
+
+        spApiType.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                when (position) {
+                    0 -> { // OpenAI
+                        tilUrl?.helperText = "将自动补全/v1，示例: https://api.openai.com"
+                        tilModel?.helperText = "示例: gpt-4o 或 deepseek-reasoner"
+                        if (isNew && etUrl.text.isNullOrBlank()) etUrl.setText("https://api.openai.com")
+                        if (isNew && etModel.text.isNullOrBlank()) etModel.setText("gpt-4o")
+                    }
+                    1 -> { // Anthropic
+                        tilUrl?.helperText = "示例: https://api.anthropic.com"
+                        tilModel?.helperText = "示例: claude-3-5-sonnet-20241022"
+                        if (isNew && etUrl.text.isNullOrBlank()) etUrl.setText("https://api.anthropic.com")
+                        if (isNew && etModel.text.isNullOrBlank()) etModel.setText("claude-3-5-sonnet-20241022")
+                    }
+                    2 -> { // Gemini
+                        tilUrl?.helperText = "官方直连填 https://generativelanguage.googleapis.com"
+                        tilModel?.helperText = "示例: gemini-2.5-flash 或 gemini-1.5-pro"
+                        if (isNew && etUrl.text.isNullOrBlank()) etUrl.setText("https://generativelanguage.googleapis.com")
+                        if (isNew && etModel.text.isNullOrBlank()) etModel.setText("gemini-2.5-flash")
+                    }
+                }
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
 
         if (config != null) {
             etName.setText(config.name)
@@ -98,7 +150,30 @@ class AiModelFragment : Fragment() {
             etKey.setText(config.apiKey)
             etModel.setText(config.model)
             swThink.isChecked = config.thinkingDefault
+            swVision.isChecked = config.isVision
+            
+            // 根据 Token 数量映射选中分段按钮
+            val checkButtonId = when {
+                config.thinkingBudget >= 4096 -> R.id.btn_budget_expert
+                config.thinkingBudget >= 2048 -> R.id.btn_budget_deep
+                config.thinkingBudget >= 1024 -> R.id.btn_budget_light
+                else -> R.id.btn_budget_speed
+            }
+            toggleBudget.check(checkButtonId)
+
+            val index = when (config.apiType.lowercase()) {
+                "anthropic" -> 1
+                "gemini" -> 2
+                else -> 0
+            }
+            spApiType.setSelection(index)
+        } else {
+            // 默认选中“终极”档位 (4096)
+            toggleBudget.check(R.id.btn_budget_expert)
         }
+
+        // 初始化联动状态显示
+        layoutBudgetGroup.visibility = if (swThink.isChecked) View.VISIBLE else View.GONE
 
         val dialog = AlertDialog.Builder(ctx, R.style.TransparentDialog)
             .setView(form)
@@ -108,10 +183,29 @@ class AiModelFragment : Fragment() {
                 val key = etKey.text?.toString()?.trim() ?: ""
                 val model = etModel.text?.toString()?.trim() ?: ""
                 if (name.isBlank()) return@setPositiveButton
+
+                val apiType = when (spApiType.selectedItemPosition) {
+                    1 -> "anthropic"
+                    2 -> "gemini"
+                    else -> "openai"
+                }
+                
+                // 将分段按钮选择映射回底层的 Token 数量
+                val budget = when (toggleBudget.checkedButtonId) {
+                    R.id.btn_budget_speed -> 0
+                    R.id.btn_budget_light -> 1024
+                    R.id.btn_budget_deep -> 2048
+                    R.id.btn_budget_expert -> 4096
+                    else -> 4096
+                }
+
                 val newConfig = AiModelConfig(
                     id = config?.id ?: java.util.UUID.randomUUID().toString(),
                     name = name, baseUrl = url, apiKey = key, model = model,
-                    thinkingDefault = swThink.isChecked
+                    thinkingDefault = swThink.isChecked,
+                    isVision = swVision.isChecked,
+                    apiType = apiType,
+                    thinkingBudget = budget
                 )
                 if (isNew) ModelManager.add(ctx, newConfig)
                 else ModelManager.update(ctx, newConfig)
@@ -151,13 +245,6 @@ class AiModelFragment : Fragment() {
         switchSilentSearch = view.findViewById(R.id.switch_silent_search)
         sbBallSize = view.findViewById(R.id.sb_ball_size)
         tvBallSizeVal = view.findViewById(R.id.tv_ball_size_val)
-
-        rgMultiPassStrategy = view.findViewById(R.id.rg_multi_pass_strategy)
-        layoutCustomR2Prompt = view.findViewById(R.id.layout_custom_r2_prompt)
-        etCustomR2Prompt = view.findViewById(R.id.et_custom_r2_prompt)
-        layoutSelfCheckInstruction = view.findViewById(R.id.layout_self_check_instruction)
-        etSelfCheckInstruction = view.findViewById(R.id.et_self_check_instruction)
-        btnEditStrategy = view.findViewById(R.id.btn_edit_strategy)
     }
 
     private fun loadSettingsConfig() {
@@ -173,18 +260,6 @@ class AiModelFragment : Fragment() {
         val ballSize = AppPreferences.getFloatBallSize(ctx)
         sbBallSize.progress = ballSize
         tvBallSizeVal.text = "${ballSize}dp"
-
-        val activeScheme = StrategyManager.activeScheme
-        rgMultiPassStrategy.check(
-            when (activeScheme?.id) {
-                "builtin_single" -> R.id.rb_strategy_single
-                "builtin_selfcheck" -> R.id.rb_strategy_self_check
-                "builtin_customr2" -> R.id.rb_strategy_custom_r2
-                else -> R.id.rb_strategy_standard
-            }
-        )
-        etCustomR2Prompt.setText(activeScheme?.customR2Prompt ?: "")
-        etSelfCheckInstruction.setText(TeacherManager.getSelfCheckInstruction())
     }
 
     private fun setupSettingsListeners() {
@@ -219,27 +294,6 @@ class AiModelFragment : Fragment() {
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
-
-        btnEditStrategy.setOnClickListener { showStrategyEditDialog() }
-
-        rgMultiPassStrategy.setOnCheckedChangeListener { _, id ->
-            val schemeId = when (id) {
-                R.id.rb_strategy_single -> "builtin_single"
-                R.id.rb_strategy_self_check -> "builtin_selfcheck"
-                R.id.rb_strategy_custom_r2 -> "builtin_customr2"
-                else -> "builtin_standard"
-            }
-            StrategyManager.activate(ctx, schemeId)
-            val scheme = StrategyManager.activeScheme
-            if (schemeId == "builtin_single" && scheme != null) {
-                if (!scheme.isSingleRound()) {
-                    val fixed = scheme.copy(r2ModelId = "none", r3ModelId = "none")
-                    StrategyManager.update(ctx, fixed)
-                    StrategyManager.activate(ctx, fixed.id)
-                }
-            }
-            updateMultiPassInputs(StrategyManager.activeScheme?.id ?: "")
-        }
 
         // 卡片弹出方式
         val btnCardMode = view?.findViewById<TextView>(R.id.btn_card_mode) ?: return
@@ -336,133 +390,71 @@ class AiModelFragment : Fragment() {
         }
     }
 
-    private fun updateMultiPassInputs(schemeId: String) {
-        layoutCustomR2Prompt.visibility = if (schemeId == "builtin_customr2") View.VISIBLE else View.GONE
-        layoutSelfCheckInstruction.visibility = if (schemeId == "builtin_selfcheck") View.VISIBLE else View.GONE
-    }
 
-    override fun onPause() {
-        super.onPause()
+
+    private fun showTeacherDialog() {
         val ctx = requireContext()
-        val scheme = StrategyManager.activeScheme ?: return
-        val customR2 = etCustomR2Prompt.text?.toString()?.trim() ?: ""
-        if (customR2.isNotBlank() && scheme.id == "builtin_customr2") {
-            val updated = scheme.copy(customR2Prompt = customR2)
-            StrategyManager.update(ctx, updated)
-        }
-        val selfCheck = etSelfCheckInstruction.text?.toString()?.trim() ?: ""
-        if (selfCheck.isNotBlank()) {
-            AppPreferences.setSelfCheckInstruction(ctx, selfCheck)
-        }
-    }
+        val teachers = TeacherManager.allTeachers
+        val names = teachers.map { "${it.name}${if (it.id == TeacherManager.activeTeacher.id) " ✓" else ""}" }.toTypedArray()
+        val ids = teachers.map { it.id }.toTypedArray()
 
-    // ── 策略编辑弹窗 ──────────────────────────────────────────────────
-
-    private fun showStrategyEditDialog() {
-        val ctx = requireContext()
-        val scheme = StrategyManager.activeScheme ?: return
-        val models = ModelManager.allModels
-        if (models.isEmpty()) { Toast.makeText(ctx, "请先添加AI模型", Toast.LENGTH_SHORT).show(); return }
-
-        val modelNames = models.map { it.name }.toTypedArray()
-        val modelIds = models.map { it.id }.toTypedArray()
-
-        fun pickModel(label: String, currentId: String, onResult: (String) -> Unit) {
-            val checkedIdx = modelIds.indexOf(currentId).coerceAtLeast(0)
-            AlertDialog.Builder(ctx)
-                .setTitle("选择 $label 模型")
-                .setSingleChoiceItems(modelNames, checkedIdx) { dialog, which ->
-                    dialog.dismiss()
-                    onResult(modelIds[which])
+        AlertDialog.Builder(ctx)
+            .setTitle("选择老师")
+            .setItems(names) { _, which ->
+                val selectedId = ids[which]
+                if (selectedId != TeacherManager.activeTeacher.id) {
+                    TeacherManager.switchTeacher(ctx, selectedId)
+                    Toast.makeText(ctx, "已切换到：${TeacherManager.activeTeacher.name}", Toast.LENGTH_SHORT).show()
                 }
-                .setNeutralButton("不使用") { dialog, _ ->
-                    dialog.dismiss()
-                    onResult("none")
-                }
-                .setNegativeButton("取消", null)
-                .show()
-        }
-
-        fun pickThinking(label: String, current: Boolean?, onResult: (Boolean?) -> Unit) {
-            AlertDialog.Builder(ctx)
-                .setTitle("$label 思考模式")
-                .setSingleChoiceItems(arrayOf("模型默认", "强制开启", "强制关闭"),
-                    when (current) { null -> 0; true -> 1; false -> 2 }) { dialog, which ->
-                        dialog.dismiss()
-                        onResult(when (which) { 0 -> null; 1 -> true; else -> false })
-                    }
-                .setNegativeButton("取消", null)
-                .show()
-        }
-
-        var r1Id = scheme.r1ModelId
-        var r1Think = scheme.r1Thinking
-        var r2Id = scheme.r2ModelId
-        var r2Think = scheme.r2Thinking
-        var r3Id = scheme.r3ModelId
-        var r3Think = scheme.r3Thinking
-
-        fun buildDialog() {
-            val r1Name = models.find { it.id == r1Id }?.name ?: (if (r1Id == "none") "不使用" else "—")
-            val r2Name = models.find { it.id == r2Id }?.name ?: (if (r2Id == "none") "不使用" else "—")
-            val r3Name = models.find { it.id == r3Id }?.name ?: (if (r3Id == "none") "不使用" else "—")
-
-            val thinkLabel = { b: Boolean? -> when(b) { null -> "默认"; true -> "开启"; false -> "关闭" } }
-
-            val isSingle = r2Id == "none" && r3Id == "none"
-            val items = if (isSingle) {
-                arrayOf("R1（第一轮）：$r1Name  |  思考：${thinkLabel(r1Think)}")
-            } else {
-                arrayOf(
-                    "R1（第一轮）：$r1Name  |  思考：${thinkLabel(r1Think)}",
-                    "R2（第二轮）：$r2Name  |  思考：${thinkLabel(r2Think)}",
-                    "R3（审核轮）：$r3Name  |  思考：${thinkLabel(r3Think)}"
-                )
             }
-            AlertDialog.Builder(ctx)
-                .setTitle("编辑方案：${scheme.name}${if (isSingle) "（单轮）" else ""}")
-                .setItems(items) { _, which ->
-                    when (which) {
-                        0 -> pickModel("R1", r1Id) { r1Id = it; buildDialog() }
-                        1 -> if (!isSingle) pickModel("R2", r2Id) { r2Id = it; buildDialog() }
-                        2 -> if (!isSingle) pickModel("R3", r3Id) { r3Id = it; buildDialog() }
-                    }
-                }
-                .setPositiveButton("保存") { _, _ ->
-                    val updated = scheme.copy(
-                        r1ModelId = r1Id, r1Thinking = r1Think,
-                        r2ModelId = r2Id, r2Thinking = r2Think,
-                        r3ModelId = r3Id, r3Thinking = r3Think
-                    )
-                    StrategyManager.update(ctx, updated)
-                    StrategyManager.activate(ctx, updated.id)
-                    Toast.makeText(ctx, "方案已更新", Toast.LENGTH_SHORT).show()
-                }
-                .setNeutralButton("编辑思考模式") { _, _ ->
-                    if (isSingle) {
-                        pickThinking("R1", r1Think) { r1Think = it; buildDialog() }
-                    } else {
-                        pickThinking("R1", r1Think) { r1Think = it
-                            pickThinking("R2", r2Think) { r2Think = it
-                                pickThinking("R3", r3Think) { r3Think = it; buildDialog() }
-                            }
-                        }
-                    }
-                }
-                .setNegativeButton("取消", null)
-                .show()
+            .setPositiveButton("导入老师") { _, _ -> showImportDialog() }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showImportDialog() {
+        val ctx = requireContext()
+        val input = com.google.android.material.textfield.TextInputEditText(ctx).apply {
+            hint = "粘贴老师 JSON 配置"
+            minLines = 6
+            gravity = android.view.Gravity.TOP
+            setTextSize(12f)
         }
-        buildDialog()
+        val dialog = AlertDialog.Builder(ctx)
+            .setTitle("导入新老师")
+            .setView(input)
+            .setPositiveButton("导入") { _, _ ->
+                val json = input.text?.toString()?.trim() ?: ""
+                if (json.isBlank()) return@setPositiveButton
+                TeacherManager.importTeacher(ctx, json)
+                    .onSuccess {
+                        TeacherManager.switchTeacher(ctx, it.id)
+                        Toast.makeText(ctx, "导入成功：${it.name}", Toast.LENGTH_SHORT).show()
+                    }
+                    .onFailure { e ->
+                        Toast.makeText(ctx, "导入失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.9).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
     }
 }
 
 private class ModelAdapter(
     private val items: List<AiModelConfig>,
+    private val activeModelId: String,
+    private val onSelect: (AiModelConfig) -> Unit,
     private val onEdit: (AiModelConfig) -> Unit,
     private val onDelete: (AiModelConfig) -> Unit
 ) : RecyclerView.Adapter<ModelAdapter.VH>() {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
+        val cardRoot: com.google.android.material.card.MaterialCardView = view.findViewById(R.id.card_model_root)
         val tvName: TextView = view.findViewById(R.id.tv_model_name)
         val tvDetail: TextView = view.findViewById(R.id.tv_model_detail)
         val tvThinking: TextView = view.findViewById(R.id.tv_model_thinking)
@@ -479,9 +471,36 @@ private class ModelAdapter(
 
     override fun onBindViewHolder(h: VH, pos: Int) {
         val m = items[pos]
-        h.tvName.text = m.name
-        h.tvDetail.text = "${m.model}  |  ${m.baseUrl}"
-        h.tvThinking.visibility = if (m.thinkingDefault) View.VISIBLE else View.GONE
+        val context = h.itemView.context
+        val density = context.resources.displayMetrics.density
+        
+        val isActive = m.id == activeModelId
+        if (isActive) {
+            h.tvName.text = "✓  ${m.name}"
+            h.tvName.setTextColor(context.getColor(R.color.primary))
+            h.cardRoot.setStrokeColor(android.content.res.ColorStateList.valueOf(context.getColor(R.color.primary)))
+            h.cardRoot.strokeWidth = (2.5f * density).toInt()
+            // 浅绿色微光底色 (#EBF2EE)，透明度约 8%
+            h.cardRoot.setCardBackgroundColor(android.content.res.ColorStateList.valueOf(0x155C8271.toInt()))
+        } else {
+            h.tvName.text = m.name
+            h.tvName.setTextColor(context.getColor(R.color.text_primary))
+            h.cardRoot.setStrokeColor(android.content.res.ColorStateList.valueOf(context.getColor(R.color.border_light)))
+            h.cardRoot.strokeWidth = (1.0f * density).toInt()
+            h.cardRoot.setCardBackgroundColor(android.content.res.ColorStateList.valueOf(context.getColor(R.color.background_card_glass)))
+        }
+
+        h.tvDetail.text = "${m.model}  |  ${m.baseUrl.ifBlank { "Google AI Studio 官方" }}"
+        
+        val tags = mutableListOf<String>()
+        if (m.apiType != "openai") tags.add(m.apiType.uppercase())
+        if (m.thinkingDefault) tags.add("思考")
+        if (m.isVision) tags.add("识图")
+        h.tvThinking.text = tags.joinToString(" • ")
+        h.tvThinking.visibility = if (tags.isNotEmpty()) View.VISIBLE else View.GONE
+        
+        // 整个卡片区域（除编辑和删除外）点击触发设为首选大模型！
+        h.cardRoot.setOnClickListener { onSelect(m) }
         h.btnEdit.setOnClickListener { onEdit(m) }
         h.btnDelete.setOnClickListener { onDelete(m) }
     }

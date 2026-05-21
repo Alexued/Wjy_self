@@ -103,6 +103,7 @@ class WrongQuestionsActivity : AppCompatActivity() {
     ) : RecyclerView.Adapter<WrongQuestionsAdapter.ViewHolder>() {
 
         inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+            val cardView: com.google.android.material.card.MaterialCardView = view.findViewById(R.id.card_view)
             val tvSourceBadge: TextView = view.findViewById(R.id.tv_source_badge)
             val tvSummary: TextView = view.findViewById(R.id.tv_summary)
             val tvDate: TextView = view.findViewById(R.id.tv_date)
@@ -119,6 +120,21 @@ class WrongQuestionsActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val item = list[position]
+
+            // 根据已总结/未总结状态动态渲染卡片背景与描边（禅意抹茶设计升级）
+            if (item.isSummarized) {
+                // 已总结：融入背景的古朴素沙色，柔和的极淡描边，低调归档
+                holder.cardView.setCardBackgroundColor(android.content.res.ColorStateList.valueOf(0xFFF2ECE7.toInt()))
+                holder.cardView.setStrokeColor(android.content.res.ColorStateList.valueOf(0x33EAE1D4.toInt())) // 极淡沙描边
+                holder.ivStatus.setImageResource(R.drawable.ic_chevron_right)
+                holder.ivStatus.alpha = 0.4f
+            } else {
+                // 未总结：通透高亮象牙白，精致而显眼的半透明抹茶绿描边，突出积极待办状态
+                holder.cardView.setCardBackgroundColor(android.content.res.ColorStateList.valueOf(0xFFFCFAF7.toInt()))
+                holder.cardView.setStrokeColor(android.content.res.ColorStateList.valueOf(0x885C8271.toInt())) // 抹茶绿描边
+                holder.ivStatus.setImageResource(R.drawable.ic_chevron_right)
+                holder.ivStatus.alpha = 1.0f
+            }
 
             // 来源标记
             if (item.isFromBank) {
@@ -145,15 +161,6 @@ class WrongQuestionsActivity : AppCompatActivity() {
 
             // 笔记标记
             holder.ivHasNotes.visibility = if (item.summary.isNotEmpty()) View.VISIBLE else View.GONE
-
-            // 已总结状态
-            if (item.isSummarized) {
-                holder.ivStatus.setImageResource(R.drawable.ic_chevron_right)
-                holder.ivStatus.alpha = 1.0f
-            } else {
-                holder.ivStatus.setImageResource(R.drawable.ic_chevron_right)
-                holder.ivStatus.alpha = 0.4f
-            }
 
             // 点击进入详情
             holder.itemView.setOnClickListener {

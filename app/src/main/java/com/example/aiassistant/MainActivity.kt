@@ -77,9 +77,8 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
 
         // 初始化老师系统
         TeacherManager.init(this)
-        // 初始化 AI 模型和策略
+        // 初始化 AI 模型
         ModelManager.init(this)
-        StrategyManager.init(this)
         // 初始化题库（后台加载）
         QuestionBankManager.init(this)
         // 初始化词典（后台加载）
@@ -119,6 +118,16 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
             // 服务仍在运行（SPECIAL_USE 类型），只需重新获取 MediaProjection
             if (Settings.canDrawOverlays(this)) {
                 requestScreenCapturePermission()
+            } else {
+                startPermissionFlow()
+            }
+        }
+        // 处理快捷磁贴点击自动开启服务
+        if (intent.getBooleanExtra("start_float_service_auto", false)) {
+            if (Settings.canDrawOverlays(this)) {
+                if (!isServiceRunning()) {
+                    startPermissionFlow()
+                }
             } else {
                 startPermissionFlow()
             }
@@ -271,6 +280,12 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         startForegroundService(serviceIntent)
         AppPreferences.setFloatEnabled(this, true)
         Toast.makeText(this, "悬浮球已开启，切换到其他应用即可使用", Toast.LENGTH_LONG).show()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            android.service.quicksettings.TileService.requestListeningState(
+                this, android.content.ComponentName(this, FloatBallTileService::class.java)
+            )
+        }
     }
 
     private fun stopScreenCaptureService() {
@@ -278,6 +293,12 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         stopService(serviceIntent)
         AppPreferences.setFloatEnabled(this, false)
         Toast.makeText(this, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            android.service.quicksettings.TileService.requestListeningState(
+                this, android.content.ComponentName(this, FloatBallTileService::class.java)
+            )
+        }
     }
 
     // ── 应用拦截：overlay 被 Activity 盖住时，将 Activity 移到后台 ──

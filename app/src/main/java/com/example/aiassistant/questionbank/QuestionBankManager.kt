@@ -55,9 +55,20 @@ object QuestionBankManager {
                 val dbHelper = QuestionBankDb(appCtx)
                 db = dbHelper
 
-                if (!dbHelper.isImported()) {
+                // 完整性自愈检查：检测大模块总数和题目总数
+                var needReimport = !dbHelper.isImported()
+                if (!needReimport) {
+                    val modules = dbHelper.getModules()
+                    val totalQuestions = modules.sumOf { it.questionCount + it.children.sumOf { child -> child.questionCount } }
+                    if (totalQuestions < 20000 || modules.size < 5) {
+                        Log.w(TAG, "检测到题库数据残缺（共 $totalQuestions 题，${modules.size} 模块），触发自动修复重新导入...")
+                        needReimport = true
+                    }
+                }
+
+                if (needReimport) {
                     importing = true
-                    Log.d(TAG, "首次启动，开始导入题库...")
+                    Log.d(TAG, "开始导入题库...")
                     dbHelper.importFromAssets(appCtx) { msg ->
                         Log.d(TAG, msg)
                     }
@@ -135,5 +146,11 @@ object QuestionBankManager {
             val result = search(ocrText)
             onResult(result)
         }
+    }
+
+    /** 获取题目所属模块名称 */
+    fun getQuestionModuleName(questionId: String): String? {
+        val moduleId = db?.getQuestionModuleId(questionId) ?: return null
+        return db?.getModuleName(moduleId)
     }
 }

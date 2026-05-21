@@ -64,6 +64,17 @@
                     android:text="Prompt 模板管理"
                     android:textSize="14sp"
                     android:textColor="@color/primary"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_teacher_manage"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:text="管理名师团队"
+                    android:textSize="14sp"
+                    android:textColor="@color/primary"
                     style="@style/Widget.Material3.Button.OutlinedButton" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -355,6 +366,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
+            android:visibility="gone"
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border_light"

@@ -83,7 +83,7 @@
             android:layout_height="1dp"
             android:background="@color/card_divider" />
 
-        <!-- 快捷配置工具条 (当前题型 & 当前老师) -->
+        <!-- 快捷配置工具条 (当前题型 & 当前老师 & 发送模式) -->
         <LinearLayout
             android:id="@+id/layout_config_toolbar"
             android:layout_width="match_parent"
@@ -91,15 +91,15 @@
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="#FAF8F5"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp">
 
             <!-- 老师快捷切换 -->
             <LinearLayout
                 android:id="@+id/btn_switch_teacher_float"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
+                android:layout_weight="1.0"
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackground"
@@ -111,7 +111,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="👤 老师: 花生"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textColor="@color/primary"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -126,7 +126,7 @@
                 android:id="@+id/btn_switch_type_float"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
+                android:layout_weight="1.1"
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackground"
@@ -138,7 +138,34 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="🏷️ 题型: 片段阅读"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
+                    android:textColor="@color/primary"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="16dp"
+                android:background="@color/card_divider" />
+
+            <!-- 发送模式快捷切换 -->
+            <LinearLayout
+                android:id="@+id/btn_switch_mode_float"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1.0"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tv_active_mode_float"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔮 模式: 文字"
+                    android:textSize="11sp"
                     android:textColor="@color/primary"
                     android:textStyle="bold" />
             </LinearLayout>

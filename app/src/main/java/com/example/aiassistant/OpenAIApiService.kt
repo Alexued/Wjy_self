@@ -9,9 +9,9 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * 封装 OpenAI 格式的 API 调用
- * 兼容：OpenAI / 任意 OpenAI Compatible 服务
- * 使用非流式（一次性）请求，等待完整响应后返回
+ * 通用 AI 接口引擎：支持 OpenAI、Anthropic 和 Google Gemini 协议
+ * 兼容：OpenAI / Anthropic Claude / Google Gemini REST API 及自定义中转
+ * 使用非流式（一次性）请求，支持自动重试与高可用模型链式容错
  */
 object OpenAIApiService {
 
@@ -21,11 +21,9 @@ object OpenAIApiService {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    /** 跟踪当前正在执行的请求，用于取消 */
     private var currentCall: Call? = null
     private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** 取消当前正在执行的请求（原子交换，避免竞态覆盖新请求） */
     fun cancelCurrentRequest() {
         retryHandler.removeCallbacksAndMessages(null)
         val call = synchronized(this) {
@@ -36,10 +34,6 @@ object OpenAIApiService {
         call?.let { if (!it.isCanceled()) it.cancel() }
     }
 
-    /**
-     * 预热 HTTPS 连接（DNS + TCP + TLS 握手）
-     * 在服务启动时调用，后续请求可复用连接池，节省 200-500ms
-     */
     fun warmUpConnection(baseUrl: String) {
         Thread {
             try {
@@ -49,17 +43,38 @@ object OpenAIApiService {
                     .head()
                     .build()
                 client.newCall(request).execute().close()
-                android.util.Log.d("OpenAIApiService", "连接预热完成: $baseUrl")
-            } catch (_: Exception) {
-                android.util.Log.d("OpenAIApiService", "连接预热失败: $baseUrl")
-            }
+            } catch (_: Exception) {}
         }.start()
     }
 
-    /**
-     * 使用自定义 system prompt 进行分析（多轮推理使用）
-     * 与 analyzeText 的唯一区别：直接传入 systemPrompt，不从 AppPreferences 读取
-     */
+    /** 统一文本请求核心：完美路由至 OpenAI / Anthropic / Gemini */
+    fun analyzeText(
+        ocrText: String,
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        prompt: String,
+        thinking: Boolean = false,
+        userMessage: String? = null,
+        apiType: String = "openai",
+        thinkingBudget: Int = 4096,
+        onComplete: (fullText: String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val systemPrompt = prompt
+        val userContent = userMessage ?: "以下是从图片中识别出的文字内容：\n$ocrText"
+
+        val request = try {
+            buildTextRequest(baseUrl, apiKey, model, systemPrompt, userContent, thinking, apiType, thinkingBudget)
+        } catch (e: Exception) {
+            onError("构建请求失败：${e.message}")
+            return
+        }
+
+        executeRequest(request, apiType, 0, onComplete, onError)
+    }
+
+    /** 统一 System Prompt 模式接口（向下兼容） */
     fun analyzeWithSystemPrompt(
         ocrText: String,
         systemPrompt: String,
@@ -68,107 +83,15 @@ object OpenAIApiService {
         model: String,
         thinking: Boolean = false,
         userMessage: String? = null,
+        apiType: String = "openai",
+        thinkingBudget: Int = 4096,
         onComplete: (fullText: String) -> Unit,
         onError: (String) -> Unit
     ) {
-        val systemMessage = JSONObject().apply {
-            put("role", "system")
-            put("content", systemPrompt)
-        }
-        val userMsg = JSONObject().apply {
-            put("role", "user")
-            put("content", userMessage ?: "以下是从图片中识别出的文字内容：\n$ocrText")
-        }
-        val requestBody = JSONObject().apply {
-            put("model", model)
-            put("messages", JSONArray().apply {
-                put(systemMessage)
-                put(userMsg)
-            })
-            put("max_tokens", 8192)
-            put("stream", false)
-            if (thinking) {
-                put("reasoning_effort", "high")
-                put("thinking", JSONObject().apply { put("type", "enabled") })
-            }
-        }
-
-        val url = baseUrl.trimEnd('/') + "/chat/completions"
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        // 不调用 cancelCurrentRequest()：多轮推理时 R1/R2 需并行，不能互相取消。
-        // 外部可通过 OpenAIApiService.cancelCurrentRequest() 统一取消。
-        fun enqueueWithRetry(retryCount: Int) {
-            val call = client.newCall(request)
-            synchronized(this) { currentCall = call }
-            call.enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    if (call.isCanceled()) return
-                    onError("网络请求失败：${e.message}")
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    if (call.isCanceled()) { response.close(); return }
-                    if (!response.isSuccessful) {
-                        val bodyStr = try { response.body?.string() } catch (_: Exception) { null } ?: "无响应体"
-                        response.close()
-                        if (response.code == 429 && retryCount < 3) {
-                            val delayMs = (retryCount + 1) * 3000L
-                            android.util.Log.w("OpenAIApiService", "429 速率限制，${delayMs}ms 后第${retryCount + 1}次重试")
-                            retryHandler.postDelayed({ enqueueWithRetry(retryCount + 1) }, delayMs)
-                            return
-                        }
-                        onError("API响应错误 ${response.code}：$bodyStr")
-                        return
-                    }
-
-                val body = response.body
-                if (body == null) {
-                    onError("API响应为空")
-                    return
-                }
-
-                try {
-                    val responseStr = body.string()
-                    val json = JSONObject(responseStr)
-                    val choices = json.optJSONArray("choices")
-                    if (choices == null || choices.length() == 0) {
-                        onError("API返回空choices")
-                        return
-                    }
-                    val message = choices.getJSONObject(0).optJSONObject("message")
-                    if (message == null) {
-                        onError("API返回空message")
-                        return
-                    }
-
-                    val content = message.opt("content")
-                    val finalContent = if (content != null && content !== JSONObject.NULL) {
-                        val cStr = content.toString()
-                        if (cStr != "null") cStr else ""
-                    } else ""
-
-                    onComplete(finalContent)
-                } catch (e: Exception) {
-                    onError("解析响应失败：${e.message}")
-                } finally {
-                    try { body.close() } catch (_: Exception) {}
-                }
-            }
-        })
-        }
-        enqueueWithRetry(0)
+        analyzeText(ocrText, baseUrl, apiKey, model, systemPrompt, thinking, userMessage, apiType, thinkingBudget, onComplete, onError)
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 视觉 API（图像直接送多模态模型，跳过 OCR）
-    // ─────────────────────────────────────────────────────────────────────
-
+    /** 统一视觉/多模态请求核心：完美路由至 OpenAI / Anthropic / Gemini */
     fun analyzeWithImage(
         imageBase64: String,
         systemPrompt: String,
@@ -176,94 +99,344 @@ object OpenAIApiService {
         apiKey: String,
         model: String,
         thinking: Boolean = false,
+        apiType: String = "openai",
+        thinkingBudget: Int = 4096,
         onComplete: (fullText: String) -> Unit,
         onError: (String) -> Unit
     ) {
-        val systemMessage = JSONObject().apply {
-            put("role", "system")
-            put("content", systemPrompt)
+        val request = try {
+            buildImageRequest(baseUrl, apiKey, model, systemPrompt, imageBase64, thinking, apiType, thinkingBudget)
+        } catch (e: Exception) {
+            onError("构建视觉请求失败：${e.message}")
+            return
         }
-        val userContent = JSONArray().apply {
-            put(JSONObject().apply {
-                put("type", "text")
-                put("text", "请分析这张图片中的题目")
-            })
-            put(JSONObject().apply {
-                put("type", "image_url")
-                put("image_url", JSONObject().apply {
-                    put("url", "data:image/jpeg;base64,$imageBase64")
-                })
-            })
-        }
-        val userMessage = JSONObject().apply {
-            put("role", "user")
-            put("content", userContent)
-        }
-        val requestBody = JSONObject().apply {
-            put("model", model)
-            put("messages", JSONArray().apply {
-                put(systemMessage)
-                put(userMessage)
-            })
-            put("max_tokens", 8192)
-            put("stream", false)
-            if (thinking) {
-                put("reasoning_effort", "high")
-                put("thinking", JSONObject().apply { put("type", "enabled") })
+
+        executeRequest(request, apiType, 0, onComplete, onError)
+    }
+
+    // ── 内部请求构造引擎 ───────────────────────────────────────────────
+
+    private fun buildTextRequest(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        systemPrompt: String,
+        userContent: String,
+        thinking: Boolean,
+        apiType: String,
+        thinkingBudget: Int
+    ): Request {
+        val mediaType = "application/json".toMediaType()
+
+        return when (apiType.lowercase()) {
+            "anthropic" -> {
+                val url = baseUrl.trimEnd('/') + "/v1/messages"
+                val body = JSONObject().apply {
+                    put("model", model)
+                    put("system", systemPrompt)
+                    put("messages", JSONArray().apply {
+                        put(JSONObject().apply { put("role", "user"); put("content", userContent) })
+                    })
+                    if (thinking) {
+                        // Anthropic: max_tokens 必须 >= budget_tokens，取两者中较大值 + 输出空间
+                        put("max_tokens", maxOf(8192, thinkingBudget + 4096))
+                        put("thinking", JSONObject().apply {
+                            put("type", "enabled")
+                            put("budget_tokens", thinkingBudget)
+                        })
+                    } else {
+                        put("max_tokens", 8192)
+                    }
+                }
+                Request.Builder()
+                    .url(url)
+                    .addHeader("x-api-key", apiKey)
+                    .addHeader("anthropic-version", "2023-06-01")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody(mediaType))
+                    .build()
+            }
+            "gemini" -> {
+                val cleanModel = if (model.startsWith("models/")) model.substringAfter("models/") else model
+                val url = if (baseUrl.contains("googleapis.com") || baseUrl.isBlank()) {
+                    "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent?key=$apiKey"
+                } else {
+                    baseUrl.trimEnd('/') + "/v1beta/models/$cleanModel:generateContent?key=$apiKey"
+                }
+                val body = JSONObject().apply {
+                    put("systemInstruction", JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", systemPrompt) })
+                        })
+                    })
+                    put("contents", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().apply { put("text", userContent) })
+                            })
+                        })
+                    })
+                    put("generationConfig", JSONObject().apply {
+                        put("maxOutputTokens", 8192)
+                        if (thinking) {
+                            put("thinkingConfig", JSONObject().apply {
+                                put("thinkingBudget", thinkingBudget)
+                            })
+                        }
+                    })
+                }
+                Request.Builder()
+                    .url(url)
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody(mediaType))
+                    .build()
+            }
+            else -> { // "openai"
+                val cleanBaseUrl = if (!baseUrl.contains("/v1") && !baseUrl.endsWith("/v1")) {
+                    baseUrl.trimEnd('/') + "/v1"
+                } else {
+                    baseUrl
+                }
+                val url = cleanBaseUrl.trimEnd('/') + "/chat/completions"
+                val body = JSONObject().apply {
+                    put("model", model)
+                    put("messages", JSONArray().apply {
+                        put(JSONObject().apply { put("role", "system"); put("content", systemPrompt) })
+                        put(JSONObject().apply { put("role", "user"); put("content", userContent) })
+                    })
+                    put("max_tokens", 8192)
+                    put("stream", false)
+                    if (thinking) {
+                        // 兼容 DeepSeek
+                        put("thinking", JSONObject().apply {
+                            put("type", "enabled")
+                            put("budget_tokens", thinkingBudget)
+                        })
+                        // 兼容 OpenAI
+                        put("reasoning_effort", "high")
+                    }
+                }
+                Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody(mediaType))
+                    .build()
             }
         }
+    }
 
-        val url = baseUrl.trimEnd('/') + "/chat/completions"
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
-            .build()
+    private fun buildImageRequest(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+        systemPrompt: String,
+        imageBase64: String,
+        thinking: Boolean,
+        apiType: String,
+        thinkingBudget: Int
+    ): Request {
+        val mediaType = "application/json".toMediaType()
 
+        return when (apiType.lowercase()) {
+            "anthropic" -> {
+                val url = baseUrl.trimEnd('/') + "/v1/messages"
+                val body = JSONObject().apply {
+                    put("model", model)
+                    put("system", systemPrompt)
+                    put("messages", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("content", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("type", "image")
+                                    put("source", JSONObject().apply {
+                                        put("type", "base64")
+                                        put("media_type", "image/jpeg")
+                                        put("data", imageBase64)
+                                    })
+                                })
+                                put(JSONObject().apply { put("type", "text"); put("text", "请分析这张图片中的题目") })
+                            })
+                        })
+                    })
+                    if (thinking) {
+                        put("max_tokens", maxOf(8192, thinkingBudget + 4096))
+                        put("thinking", JSONObject().apply {
+                            put("type", "enabled")
+                            put("budget_tokens", thinkingBudget)
+                        })
+                    } else {
+                        put("max_tokens", 8192)
+                    }
+                }
+                Request.Builder()
+                    .url(url)
+                    .addHeader("x-api-key", apiKey)
+                    .addHeader("anthropic-version", "2023-06-01")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody(mediaType))
+                    .build()
+            }
+            "gemini" -> {
+                val cleanModel = if (model.startsWith("models/")) model.substringAfter("models/") else model
+                val url = if (baseUrl.contains("googleapis.com") || baseUrl.isBlank()) {
+                    "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent?key=$apiKey"
+                } else {
+                    baseUrl.trimEnd('/') + "/v1beta/models/$cleanModel:generateContent?key=$apiKey"
+                }
+                val body = JSONObject().apply {
+                    put("systemInstruction", JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", systemPrompt) })
+                        })
+                    })
+                    put("contents", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("inlineData", JSONObject().apply {
+                                        put("mimeType", "image/jpeg")
+                                        put("data", imageBase64)
+                                    })
+                                })
+                                put(JSONObject().apply { put("text", "请分析这张图片中的题目") })
+                            })
+                        })
+                    })
+                    put("generationConfig", JSONObject().apply {
+                        put("maxOutputTokens", 8192)
+                        if (thinking) {
+                            put("thinkingConfig", JSONObject().apply {
+                                put("thinkingBudget", thinkingBudget)
+                            })
+                        }
+                    })
+                }
+                Request.Builder()
+                    .url(url)
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody(mediaType))
+                    .build()
+            }
+            else -> { // "openai"
+                val cleanBaseUrl = if (!baseUrl.contains("/v1") && !baseUrl.endsWith("/v1")) {
+                    baseUrl.trimEnd('/') + "/v1"
+                } else {
+                    baseUrl
+                }
+                val url = cleanBaseUrl.trimEnd('/') + "/chat/completions"
+                val body = JSONObject().apply {
+                    put("model", model)
+                    put("messages", JSONArray().apply {
+                        put(JSONObject().apply { put("role", "system"); put("content", systemPrompt) })
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("content", JSONArray().apply {
+                                put(JSONObject().apply { put("type", "text"); put("text", "请分析这张图片中的题目") })
+                                put(JSONObject().apply {
+                                    put("type", "image_url")
+                                    put("image_url", JSONObject().apply { put("url", "data:image/jpeg;base64,$imageBase64") })
+                                })
+                            })
+                        })
+                    })
+                    put("max_tokens", 8192)
+                    put("stream", false)
+                    if (thinking) {
+                        put("thinking", JSONObject().apply {
+                            put("type", "enabled")
+                            put("budget_tokens", thinkingBudget)
+                        })
+                        put("reasoning_effort", "high")
+                    }
+                }
+                Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody(mediaType))
+                    .build()
+            }
+        }
+    }
+
+    // ── 通用 HTTP 执行引擎 ───────────────────────────────────────────────
+
+    private fun executeRequest(
+        request: Request,
+        apiType: String,
+        retryCount: Int,
+        onComplete: (fullText: String) -> Unit,
+        onError: (String) -> Unit
+    ) {
         cancelCurrentRequest()
+        android.util.Log.d("AIAssistantAPI", "executeRequest: Launching request. Type: $apiType, URL: ${request.url}, Method: ${request.method}")
         val call = client.newCall(request)
         synchronized(this) { currentCall = call }
+
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                if (call.isCanceled()) return
+                if (call.isCanceled()) {
+                    android.util.Log.d("AIAssistantAPI", "onFailure: Request was canceled.")
+                    return
+                }
+                android.util.Log.e("AIAssistantAPI", "onFailure: Network request failed!", e)
                 onError("网络请求失败：${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
-                if (call.isCanceled()) { response.close(); return }
+                if (call.isCanceled()) {
+                    android.util.Log.d("AIAssistantAPI", "onResponse: Request was canceled after response received.")
+                    response.close()
+                    return
+                }
+
                 if (!response.isSuccessful) {
+                    val statusCode = response.code
                     val bodyStr = try { response.body?.string() } catch (_: Exception) { null } ?: "无响应体"
                     response.close()
-                    onError("API响应错误 ${response.code}：$bodyStr")
+
+                    android.util.Log.e("AIAssistantAPI", "onResponse: API Error. HTTP Status: $statusCode, ResponseBody: $bodyStr")
+
+                    // 对 429 进行延迟重试
+                    if (statusCode == 429 && retryCount < 2) {
+                        val delayMs = (retryCount + 1) * 2000L
+                        android.util.Log.w("AIAssistantAPI", "onResponse: Too Many Requests (429). Retrying in ${delayMs}ms...")
+                        retryHandler.postDelayed({
+                            executeRequest(request, apiType, retryCount + 1, onComplete, onError)
+                        }, delayMs)
+                        return
+                    }
+
+                    onError("API 响应错误 ${statusCode}：$bodyStr")
                     return
                 }
+
                 val body = response.body
                 if (body == null) {
-                    onError("API响应为空")
+                    android.util.Log.e("AIAssistantAPI", "onResponse: Response body is null!")
+                    onError("API 响应为空")
                     return
                 }
+
                 try {
                     val responseStr = body.string()
-                    val json = JSONObject(responseStr)
-                    val choices = json.optJSONArray("choices")
-                    if (choices == null || choices.length() == 0) {
-                        onError("API返回空choices")
-                        return
+                    android.util.Log.i("AIAssistantAPI", "onResponse: Raw API JSON Response: $responseStr")
+                    
+                    val parsedText = parseResponseStr(responseStr, apiType)
+                    android.util.Log.d("AIAssistantAPI", "onResponse: Parsed output length: ${parsedText.length}, preview: ${parsedText.take(150)}")
+                    
+                    if (parsedText.isEmpty()) {
+                        android.util.Log.e("AIAssistantAPI", "onResponse: Parsed text is empty!")
+                        onError("解析响应内容为空")
+                    } else {
+                        onComplete(parsedText)
                     }
-                    val message = choices.getJSONObject(0).optJSONObject("message")
-                    if (message == null) {
-                        onError("API返回空message")
-                        return
-                    }
-                    // 仅提取 content，忽略 reasoning_content（思考过程不展示）
-                    val content = message.opt("content")
-                    val finalContent = if (content != null && content !== JSONObject.NULL) {
-                        val cStr = content.toString()
-                        if (cStr != "null") cStr else ""
-                    } else ""
-                    onComplete(finalContent)
                 } catch (e: Exception) {
+                    android.util.Log.e("AIAssistantAPI", "onResponse: Parse exception!", e)
                     onError("解析响应失败：${e.message}")
                 } finally {
                     try { body.close() } catch (_: Exception) {}
@@ -272,125 +445,36 @@ object OpenAIApiService {
         })
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // 非流式 API（一次性返回完整结果）
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * 将 OCR 提取的文本发送给 AI，使用非流式（一次性）请求
-     *
-     * @param ocrText     OCR 识别出的文本
-     * @param baseUrl     API BaseUrl
-     * @param apiKey      API Key
-     * @param model       模型名称
-     * @param prompt      用户自定义提示词
-     * @param onComplete  完整响应返回后回调
-     * @param onError     失败回调
-     */
-    fun analyzeText(
-        ocrText: String,
-        baseUrl: String,
-        apiKey: String,
-        model: String,
-        prompt: String,
-        thinking: Boolean = false,
-        userMessage: String? = null,  // 自定义用户消息，null则使用默认
-        onComplete: (fullText: String) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        // 构造请求体：system 角色承载指令，user 角色承载题目内容
-        val systemMessage = JSONObject().apply {
-            put("role", "system")
-            put("content", prompt)
-        }
-        val userMsg = JSONObject().apply {
-            put("role", "user")
-            put("content", userMessage ?: "以下是从图片中识别出的文字内容：\n$ocrText")
-        }
-        val requestBody = JSONObject().apply {
-            put("model", model)
-            put("messages", JSONArray().apply {
-                put(systemMessage)
-                put(userMsg)
-            })
-            put("max_tokens", 8192)
-            put("stream", false)
-            if (thinking) {
-                put("reasoning_effort", "high")
-                put("thinking", JSONObject().apply { put("type", "enabled") })
+    private fun parseResponseStr(responseStr: String, apiType: String): String {
+        val json = JSONObject(responseStr)
+        return when (apiType.lowercase()) {
+            "anthropic" -> {
+                val contentArr = json.optJSONArray("content") ?: return ""
+                val sb = StringBuilder()
+                for (i in 0 until contentArr.length()) {
+                    val item = contentArr.getJSONObject(i)
+                    if (item.optString("type") == "text") {
+                        sb.append(item.optString("text"))
+                    }
+                }
+                sb.toString()
+            }
+            "gemini" -> {
+                val candidates = json.optJSONArray("candidates") ?: return ""
+                val parts = candidates.optJSONObject(0)
+                    ?.optJSONObject("content")
+                    ?.optJSONArray("parts") ?: return ""
+                parts.optJSONObject(0)?.optString("text") ?: ""
+            }
+            else -> { // "openai"
+                val choices = json.optJSONArray("choices") ?: return ""
+                val message = choices.optJSONObject(0)?.optJSONObject("message") ?: return ""
+                val content = message.opt("content")
+                if (content != null && content !== JSONObject.NULL) {
+                    val cStr = content.toString()
+                    if (cStr != "null") cStr else ""
+                } else ""
             }
         }
-
-        val url = baseUrl.trimEnd('/') + "/chat/completions"
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        cancelCurrentRequest() // 取消上一次未完成的请求
-        fun enqueueWithRetry(retryCount: Int) {
-            val call = client.newCall(request)
-            synchronized(this) { currentCall = call }
-            call.enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    if (call.isCanceled()) return
-                    onError("网络请求失败：${e.message}")
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    if (call.isCanceled()) { response.close(); return }
-                    if (!response.isSuccessful) {
-                        val bodyStr = try { response.body?.string() } catch (_: Exception) { null } ?: "无响应体"
-                        response.close()
-                        // 429 速率限制：自动重试（最多3次，间隔递增）
-                        if (response.code == 429 && retryCount < 3) {
-                            val delayMs = (retryCount + 1) * 3000L
-                            android.util.Log.w("OpenAIApiService", "429 速率限制，${delayMs}ms 后第${retryCount + 1}次重试")
-                            retryHandler.postDelayed({ enqueueWithRetry(retryCount + 1) }, delayMs)
-                            return
-                        }
-                        onError("API响应错误 ${response.code}：$bodyStr")
-                        return
-                    }
-
-                val body = response.body
-                if (body == null) {
-                    onError("API响应为空")
-                    return
-                }
-
-                try {
-                    val responseStr = body.string()
-                    val json = JSONObject(responseStr)
-                    val choices = json.optJSONArray("choices")
-                    if (choices == null || choices.length() == 0) {
-                        onError("API返回空choices")
-                        return
-                    }
-                    val message = choices.getJSONObject(0).optJSONObject("message")
-                    if (message == null) {
-                        onError("API返回空message")
-                        return
-                    }
-
-                    // 仅提取 content，忽略 reasoning_content（不在前端展示，也避免破坏 JSON 解析）
-                    val content = message.opt("content")
-                    val finalContent = if (content != null && content !== JSONObject.NULL) {
-                        val cStr = content.toString()
-                        if (cStr != "null") cStr else ""
-                    } else ""
-
-                    onComplete(finalContent)
-                } catch (e: Exception) {
-                    onError("解析响应失败：${e.message}")
-                } finally {
-                    try { body.close() } catch (_: Exception) {}
-                }
-            }
-        })
-        }
-        enqueueWithRetry(0)
     }
 }

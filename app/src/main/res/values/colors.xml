@@ -50,4 +50,11 @@
     <color name="tag_blue_bg">#F2ECE4</color>
     <color name="tag_blue_text">#5C8271</color>
     <color name="tag_blue_border">#D5C4B1</color>
+
+    <!-- 解析卡片暖色 (Warm Amber for analysis hints) -->
+    <color name="analysis_text">#A0705A</color>
+    <color name="analysis_text_title">#8B5E45</color>
+
+    <!-- 主色超浅底 -->
+    <color name="primary_surface">#0D5C8271</color>
 </resources>

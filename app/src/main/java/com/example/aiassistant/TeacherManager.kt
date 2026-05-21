@@ -42,14 +42,8 @@ object TeacherManager {
         val teacher = allTeachers.find { it.id == teacherId } ?: return
         activeTeacher = teacher
         AppPreferences.setActiveTeacherId(context, teacherId)
-        // 同步老师的默认策略到全局偏好
-        AppPreferences.setMultiPassStrategy(context, teacher.defaultStrategy)
-        Log.d(TAG, "切换到老师：${teacher.name}，策略：${teacher.defaultStrategy}")
+        Log.d(TAG, "切换到老师：${teacher.name}")
     }
-
-    /** 获取当前老师有效的多轮策略（用户可在UI覆盖，覆盖后以AppPreferences为准，切换老师时重置） */
-    fun getEffectiveStrategy(context: Context): Int =
-        AppPreferences.getMultiPassStrategy(context)
 
     // ── Prompt 获取（含覆盖层） ──────────────────────────────────────
 
@@ -61,7 +55,6 @@ object TeacherManager {
 
     fun getR3Prompt(): String = activeTeacher.r3Prompt
     fun getSelfCheckInstruction(): String = activeTeacher.selfCheckInstruction
-    fun getDefaultStrategy(): Int = activeTeacher.defaultStrategy
 
     fun getCustomR2Prompt(context: Context, type: QuestionType): String? {
         val overlay = getOverlay(context, activeTeacher.id, type)

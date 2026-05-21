@@ -21,23 +21,47 @@ import android.widget.Toast
 internal fun ScreenCaptureService.showFloatBall() {
     if (floatBallView != null) return
 
-    val sizeDp = AppPreferences.getFloatBallSize(this)
-    val ballSize = dpToPx(sizeDp)
+    // 悬浮球尺寸 60dp
+    val ballSize = dpToPx(60)
+
+    var flagsVal = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+    if (AppPreferences.isKeepScreenOnEnabled(this)) {
+        flagsVal = flagsVal or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+    }
+
     floatBallParams = WindowManager.LayoutParams(
         ballSize, ballSize,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        flagsVal,
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START
+        // 右下角位置：右侧 1/8，下方 3/4
         x = screenWidth - ballSize - dpToPx(16)
-        y = screenHeight / 3
+        y = screenHeight * 3 / 4 - ballSize / 2
     }
 
     floatBallView = LayoutInflater.from(this).inflate(R.layout.layout_float_ball, null)
     setupFloatBallTouch(floatBallView!!)
     windowManager.addView(floatBallView, floatBallParams)
+}
+
+/** 动态更新悬浮窗常亮状态 */
+internal fun ScreenCaptureService.updateKeepScreenOnState() {
+    val view = floatBallView ?: return
+    val params = floatBallParams ?: return
+    var flagsVal = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+    if (AppPreferences.isKeepScreenOnEnabled(this)) {
+        flagsVal = flagsVal or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+    }
+    params.flags = flagsVal
+    try {
+        windowManager.updateViewLayout(view, params)
+    } catch (e: Exception) {
+        Log.e(ScreenCaptureService.TAG, "updateKeepScreenOnState failed", e)
+    }
 }
 
 /** 永久移除悬浮球（服务销毁时调用，同时置空引用） */
@@ -83,6 +107,16 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
         }
     }
 
+    // 按压缩放动画
+    fun animateScale(scale: Float) {
+        view.animate()
+            .scaleX(scale)
+            .scaleY(scale)
+            .setDuration(100)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
+    }
+
     view.setOnTouchListener { _, event ->
         val params = floatBallParams ?: return@setOnTouchListener false
         when (event.action) {
@@ -94,6 +128,8 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
                 isDrag = false
                 isLongPress = false
                 mainHandler.postDelayed(longPressRunnable, 800)
+                // 按下时缩小
+                animateScale(0.92f)
                 true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -102,6 +138,8 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
                 if (!isDrag && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                     isDrag = true
                     mainHandler.removeCallbacks(longPressRunnable)
+                    // 开始拖动时恢复大小
+                    animateScale(1.0f)
                 }
                 if (isDrag) {
                     params.x = (initialX + dx).toInt()
@@ -113,9 +151,11 @@ internal fun ScreenCaptureService.setupFloatBallTouch(view: View) {
                 }
                 true
             }
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 mainHandler.removeCallbacks(longPressRunnable)
-                if (!isDrag && !isLongPress) {
+                // 恢复大小
+                animateScale(1.0f)
+                if (event.action == MotionEvent.ACTION_UP && !isDrag && !isLongPress) {
                     onFloatBallClicked()
                 }
                 true
@@ -147,8 +187,8 @@ internal fun ScreenCaptureService.updateAttachedCardPosition() {
 internal fun ScreenCaptureService.updateFloatBallSize() {
     val view = floatBallView ?: return
     val params = floatBallParams ?: return
-    val sizeDp = AppPreferences.getFloatBallSize(this)
-    val ballSize = dpToPx(sizeDp)
+    // 固定 60dp
+    val ballSize = dpToPx(60)
 
     params.width = ballSize
     params.height = ballSize
@@ -167,9 +207,8 @@ internal fun ScreenCaptureService.updateFloatBallSize() {
 
 internal fun ScreenCaptureService.showSmallBall() {
     if (smallBallView != null) return
-    val mainSizeDp = AppPreferences.getFloatBallSize(this)
-    val mainBallSize = dpToPx(mainSizeDp)
-    val smallBallSize = mainBallSize / 2
+    val mainBallSize = dpToPx(60)
+    val smallBallSize = dpToPx(36)
 
     smallBallParams = WindowManager.LayoutParams(
         smallBallSize, smallBallSize,
@@ -179,12 +218,11 @@ internal fun ScreenCaptureService.showSmallBall() {
         PixelFormat.TRANSLUCENT
     ).apply {
         gravity = Gravity.TOP or Gravity.START
-        x = screenWidth - mainBallSize - smallBallSize - dpToPx(24)
-        y = screenHeight / 3 + (mainBallSize - smallBallSize) / 2
+        x = screenWidth - mainBallSize - smallBallSize - dpToPx(12)
+        y = screenHeight * 3 / 4 - mainBallSize / 2 + (mainBallSize - smallBallSize) / 2
     }
 
-    smallBallView = LayoutInflater.from(this).inflate(R.layout.layout_float_ball, null)
-    smallBallView?.setBackgroundResource(R.drawable.bg_small_float_ball)
+    smallBallView = LayoutInflater.from(this).inflate(R.layout.layout_small_ball, null)
     setupSmallBallTouch(smallBallView!!)
     windowManager.addView(smallBallView, smallBallParams)
 }
@@ -216,7 +254,7 @@ internal fun ScreenCaptureService.updateSmallBallPosition() {
     val smallParams = smallBallParams ?: return
     val mainBallSize = mainParams.width
     val smallBallSize = smallParams.width
-    smallParams.x = mainParams.x - smallBallSize - dpToPx(8)
+    smallParams.x = mainParams.x - smallBallSize - dpToPx(6)
     smallParams.y = mainParams.y + (mainBallSize - smallBallSize) / 2
     try {
         windowManager.updateViewLayout(smallView, smallParams)
@@ -309,18 +347,26 @@ internal fun ScreenCaptureService.onSmallBallClicked() {
 
 internal fun ScreenCaptureService.showBallProgress(text: String) {
     mainHandler.post {
-        floatBallView?.findViewById<ImageView>(R.id.iv_ball)?.visibility = View.GONE
-        floatBallView?.findViewById<TextView>(R.id.tv_ball_progress)?.let {
-            it.text = text
-            it.visibility = View.VISIBLE
+        floatBallView?.let { root ->
+            val ivBall = root.findViewById<ImageView>(R.id.iv_ball)
+            val tvProgress = root.findViewById<TextView>(R.id.tv_ball_progress)
+            ivBall?.setImageDrawable(null)
+            tvProgress?.let {
+                it.text = text
+                it.visibility = View.VISIBLE
+            }
         }
     }
 }
 
 internal fun ScreenCaptureService.hideBallProgress() {
     mainHandler.post {
-        floatBallView?.findViewById<ImageView>(R.id.iv_ball)?.visibility = View.VISIBLE
-        floatBallView?.findViewById<TextView>(R.id.tv_ball_progress)?.visibility = View.GONE
+        floatBallView?.let { root ->
+            val ivBall = root.findViewById<ImageView>(R.id.iv_ball)
+            val tvProgress = root.findViewById<TextView>(R.id.tv_ball_progress)
+            ivBall?.setImageResource(R.drawable.ic_visual_search)
+            tvProgress?.visibility = View.GONE
+        }
     }
 }
 
@@ -375,19 +421,10 @@ internal fun ScreenCaptureService.showBallMenu() {
     divider2.visibility = if (enabledItems.contains("capture_mode") && enabledItems.contains("close")) View.VISIBLE else View.GONE
     closeItem.visibility = if (enabledItems.contains("close")) View.VISIBLE else View.GONE
 
-    // 获取新增的题型与名师菜单项
-    val typeItem = menuView.findViewById<TextView>(R.id.menu_switch_type)
+    // 获取新增的名师菜单项
     val teacherItem = menuView.findViewById<TextView>(R.id.menu_switch_teacher)
 
     // 显示并更新内容
-    typeItem?.let {
-        it.visibility = View.VISIBLE
-        it.text = "🏷️ 题型: ${AppPreferences.getCurrentQuestionType(this).displayName}"
-        it.setOnClickListener {
-            dismissBallMenu()
-            showTypeSelectDialog()
-        }
-    }
     teacherItem?.let {
         it.visibility = View.VISIBLE
         it.text = "👤 名师: ${TeacherManager.activeTeacher.name}"
@@ -614,30 +651,7 @@ internal fun ScreenCaptureService.dismissDictionaryOverlay() {
     }
 }
 
-private fun ScreenCaptureService.showTypeSelectDialog() {
-    val items = QuestionType.entries.map { it.displayName }.toTypedArray()
-    val activeType = AppPreferences.getCurrentQuestionType(this)
-    val checkedItem = QuestionType.entries.indexOf(activeType)
 
-    val builder = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-        .setTitle("选择当前默认题型")
-        .setSingleChoiceItems(items, checkedItem) { dialog, which ->
-            val selectedType = QuestionType.entries[which]
-            AppPreferences.setCurrentQuestionType(this, selectedType)
-            Toast.makeText(this, "当前默认题型已切换为：${selectedType.displayName}", Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
-        }
-        .setNegativeButton("取消", null)
-
-    val dialog = builder.create()
-    if (android.os.Build.VERSION.SDK_INT >= 26) {
-        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-    } else {
-        @Suppress("DEPRECATION")
-        dialog.window?.setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
-    }
-    dialog.show()
-}
 
 private fun ScreenCaptureService.showTeacherSelectDialog() {
     val teachers = TeacherManager.allTeachers

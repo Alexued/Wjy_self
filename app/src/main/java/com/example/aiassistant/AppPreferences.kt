@@ -55,8 +55,8 @@ object AppPreferences {
     // 默认值
     const val DEFAULT_BASE_URL = "https://api.deepseek.com"
     private const val DEFAULT_MODEL = "deepseek-chat"
-    const val DEFAULT_API_KEY = "sk-178ddf915bbc4c71b31f0e5ea66dd177"
-    const val DEFAULT_CLOUD_OCR_TOKEN = "2c13ab5e937c515153b8245175410120fb961ed7"
+    const val DEFAULT_API_KEY = ""
+    const val DEFAULT_CLOUD_OCR_TOKEN = ""
 
     // 默认 prompt 已移至 PromptTemplates.kt，通过 PromptTemplates.getDefaultPrompt() 获取
 
@@ -249,37 +249,14 @@ object AppPreferences {
             .apply()
     }
 
-    // ── 多轮推理策略 ────────────────────────────────────────────────────
-    private const val KEY_MULTI_PASS_STRATEGY = "multi_pass_strategy"
-    const val STRATEGY_STANDARD = 0    // 两轮均用默认prompt
-    const val STRATEGY_SELF_CHECK = 1  // R1默认, R2自检
-    const val STRATEGY_CUSTOM_R2 = 2   // R1默认, R2用户自定义
-    const val STRATEGY_SINGLE = 3      // 单轮推理
+    // ── 首选大模型设置 ────────────────────────────────────────────────────
+    private const val KEY_ACTIVE_MODEL_ID = "active_model_id"
 
-    private const val KEY_CUSTOM_R2_PROMPT = "custom_r2_prompt"
-    private const val KEY_SELF_CHECK_INSTRUCTION = "self_check_instruction"
+    fun getActiveModelId(context: Context): String =
+        prefs(context).getString(KEY_ACTIVE_MODEL_ID, "") ?: ""
 
-    val DEFAULT_SELF_CHECK_INSTRUCTION = "重要补充：请在完成上述分析后，重新审视你的全部推理过程和最终答案。逐一检查：① 题目文字校对是否准确 ② 题型判定是否正确 ③ 逻辑拆解是否合理 ④ 选项排除理由是否充分。如发现错误或遗漏，请修正后再输出最终JSON。"
-
-    fun getMultiPassStrategy(context: Context): Int =
-        prefs(context).getInt(KEY_MULTI_PASS_STRATEGY, STRATEGY_STANDARD)
-
-    fun setMultiPassStrategy(context: Context, strategy: Int) =
-        prefs(context).edit().putInt(KEY_MULTI_PASS_STRATEGY, strategy).apply()
-
-    fun getCustomR2Prompt(context: Context): String =
-        prefs(context).getString(KEY_CUSTOM_R2_PROMPT, "") ?: ""
-
-    fun setCustomR2Prompt(context: Context, prompt: String) =
-        prefs(context).edit().putString(KEY_CUSTOM_R2_PROMPT, prompt).apply()
-
-    fun getSelfCheckInstruction(context: Context): String =
-        prefs(context).getString(KEY_SELF_CHECK_INSTRUCTION, DEFAULT_SELF_CHECK_INSTRUCTION)
-            ?.takeIf { it.isNotBlank() } ?: DEFAULT_SELF_CHECK_INSTRUCTION
-
-    fun setSelfCheckInstruction(context: Context, instruction: String) =
-        prefs(context).edit().putString(KEY_SELF_CHECK_INSTRUCTION, instruction).apply()
-
+    fun setActiveModelId(context: Context, id: String) =
+        prefs(context).edit().putString(KEY_ACTIVE_MODEL_ID, id).apply()
     // ── AI 解析卡片位置与大小 ───────────────────────────────────────────
     private const val KEY_CARD_X = "card_x"
     private const val KEY_CARD_Y = "card_y"
@@ -542,4 +519,22 @@ object AppPreferences {
 
     fun setFloatClickAction(context: Context, action: Int) =
         prefs(context).edit().putInt(KEY_FLOAT_CLICK_ACTION, action).apply()
+
+    // ── 分析发送模式：文字 / 截图 ──
+    const val ANALYSIS_MODE_TEXT = 0
+    const val ANALYSIS_MODE_VISION = 1
+
+    fun getAnalysisMode(context: Context): Int =
+        prefs(context).getInt("analysis_mode", ANALYSIS_MODE_TEXT)
+
+    fun setAnalysisMode(context: Context, mode: Int) =
+        prefs(context).edit().putInt("analysis_mode", mode).apply()
+
+    // ── 悬浮窗常亮设置 ──
+    private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+    fun isKeepScreenOnEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_KEEP_SCREEN_ON, false) // 默认不开启常亮以省电
+
+    fun setKeepScreenOnEnabled(context: Context, enabled: Boolean) =
+        prefs(context).edit().putBoolean(KEY_KEEP_SCREEN_ON, enabled).apply()
 }

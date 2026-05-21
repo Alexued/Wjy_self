@@ -35,6 +35,7 @@ class HomeFragment : Fragment() {
     private var listener: ServiceControlListener? = null
 
     private lateinit var switchFloatBall: SwitchMaterial
+    private lateinit var switchKeepScreenOn: SwitchMaterial
     private lateinit var tvFloatStatus: TextView
     private lateinit var tvActiveTeacher: TextView
     private lateinit var btnManageTeachers: MaterialButton
@@ -97,6 +98,7 @@ class HomeFragment : Fragment() {
 
     private fun bindViews(view: View) {
         switchFloatBall = view.findViewById(R.id.switch_float_ball)
+        switchKeepScreenOn = view.findViewById(R.id.switch_keep_screen_on)
         tvFloatStatus = view.findViewById(R.id.tv_float_status)
         tvActiveTeacher = view.findViewById(R.id.tv_active_teacher)
         btnManageTeachers = view.findViewById(R.id.btn_manage_teachers)
@@ -127,6 +129,8 @@ class HomeFragment : Fragment() {
         } else {
             rbActionAi.isChecked = true
         }
+
+        switchKeepScreenOn.isChecked = AppPreferences.isKeepScreenOnEnabled(ctx)
     }
 
     private fun setupListeners() {
@@ -156,6 +160,10 @@ class HomeFragment : Fragment() {
                 AppPreferences.CLICK_ACTION_AI_ANALYZE
             }
             AppPreferences.setFloatClickAction(ctx, act)
+        }
+
+        switchKeepScreenOn.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setKeepScreenOnEnabled(ctx, isChecked)
         }
     }
 

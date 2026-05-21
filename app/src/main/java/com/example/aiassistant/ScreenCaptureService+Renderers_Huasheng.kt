@@ -694,6 +694,11 @@ internal fun ScreenCaptureService.renderHuashengLuoJiPanDuan(card: View, json: J
     renderQuestionSection(card, json, d)
     renderAnswerSection(card, json, d)
 
+    // ── 渲染逻辑图 ────────────────────────────────────────────────────────
+    if (json.has("diagram_type")) {
+        renderHuashengLogicalDiagram(card, json, d)
+    }
+
     val reasoningType = cleanHtmlText(jsonStr(json,"reasoning_type", ""))
     val argStructure = cleanHtmlText(jsonStr(json,"argument_structure", ""))
 
@@ -1149,3 +1154,434 @@ internal fun ScreenCaptureService.makeCard(w: Int, h: Int): LinearLayout =
         orientation = LinearLayout.VERTICAL
         layoutParams = LinearLayout.LayoutParams(w, h)
     }
+
+// ── 逻辑图渲染器实现 (Premium Matcha Green System) ───────────────────────
+
+data class CircleData(val id: String, val label: String)
+data class RelationData(val type: String, val between: List<String>, val label: String)
+
+class EulerDiagramView @JvmOverloads constructor(
+    context: android.content.Context,
+    attrs: android.util.AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : android.view.View(context, attrs, defStyleAttr) {
+    var circles: List<CircleData> = emptyList()
+    var relations: List<RelationData> = emptyList()
+    
+    private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.FILL
+    }
+    private val strokePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 3f
+    }
+    private val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = 34f
+        textAlign = android.graphics.Paint.Align.CENTER
+        color = 0xFF1F2937.toInt()
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        super.onDraw(canvas)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (circles.isEmpty()) return
+
+        val colors = listOf(
+            0x66F43F5E.toInt(), // 柔粉红
+            0x663B82F6.toInt(), // 柔海蓝
+            0x6610B981.toInt()  // 柔草绿
+        )
+        val strokeColors = listOf(
+            0xFFF43F5E.toInt(),
+            0xFF3B82F6.toInt(),
+            0xFF10B981.toInt()
+        )
+
+        val r = kotlin.math.min(w, h) * 0.25f
+
+        if (circles.size == 1) {
+            val cx = w / 2f
+            val cy = h / 2f
+            paint.color = colors[0]
+            canvas.drawCircle(cx, cy, r, paint)
+            strokePaint.color = strokeColors[0]
+            canvas.drawCircle(cx, cy, r, strokePaint)
+            canvas.drawText(circles[0].label, cx, cy + 12f, textPaint)
+        } else if (circles.size == 2) {
+            val rel = relations.firstOrNull()?.type ?: "intersect"
+            when (rel) {
+                "contain" -> {
+                    val cx = w / 2f
+                    val cy = h / 2f
+                    // 大圆
+                    paint.color = colors[0]
+                    canvas.drawCircle(cx, cy, r * 1.4f, paint)
+                    strokePaint.color = strokeColors[0]
+                    canvas.drawCircle(cx, cy, r * 1.4f, strokePaint)
+                    canvas.drawText(circles[0].label, cx, cy - r * 0.7f, textPaint)
+                    
+                    // 小圆
+                    paint.color = colors[1]
+                    canvas.drawCircle(cx, cy, r * 0.7f, paint)
+                    strokePaint.color = strokeColors[1]
+                    canvas.drawCircle(cx, cy, r * 0.7f, strokePaint)
+                    canvas.drawText(circles[1].label, cx, cy + 12f, textPaint)
+                }
+                "exclude" -> {
+                    val cx1 = w * 0.28f
+                    val cy1 = h / 2f
+                    val cx2 = w * 0.72f
+                    val cy2 = h / 2f
+                    
+                    paint.color = colors[0]
+                    canvas.drawCircle(cx1, cy1, r, paint)
+                    strokePaint.color = strokeColors[0]
+                    canvas.drawCircle(cx1, cy1, r, strokePaint)
+                    canvas.drawText(circles[0].label, cx1, cy1 + 12f, textPaint)
+                    
+                    paint.color = colors[1]
+                    canvas.drawCircle(cx2, cy2, r, paint)
+                    strokePaint.color = strokeColors[1]
+                    canvas.drawCircle(cx2, cy2, r, strokePaint)
+                    canvas.drawText(circles[1].label, cx2, cy2 + 12f, textPaint)
+                }
+                else -> {
+                    val cx1 = w * 0.38f
+                    val cy1 = h / 2f
+                    val cx2 = w * 0.62f
+                    val cy2 = h / 2f
+                    
+                    paint.color = colors[0]
+                    canvas.drawCircle(cx1, cy1, r * 1.05f, paint)
+                    strokePaint.color = strokeColors[0]
+                    canvas.drawCircle(cx1, cy1, r * 1.05f, strokePaint)
+                    canvas.drawText(circles[0].label, cx1 - 20f, cy1 + 12f, textPaint)
+                    
+                    paint.color = colors[1]
+                    canvas.drawCircle(cx2, cy2, r * 1.05f, paint)
+                    strokePaint.color = strokeColors[1]
+                    canvas.drawCircle(cx2, cy2, r * 1.05f, strokePaint)
+                    canvas.drawText(circles[1].label, cx2 + 20f, cy2 + 12f, textPaint)
+                }
+            }
+        } else {
+            val cx1 = w * 0.5f
+            val cy1 = h * 0.35f
+            val cx2 = w * 0.36f
+            val cy2 = h * 0.65f
+            val cx3 = w * 0.64f
+            val cy3 = h * 0.65f
+            
+            paint.color = colors[0]
+            canvas.drawCircle(cx1, cy1, r, paint)
+            strokePaint.color = strokeColors[0]
+            canvas.drawCircle(cx1, cy1, r, strokePaint)
+            canvas.drawText(circles.getOrNull(0)?.label ?: "", cx1, cy1 + 12f, textPaint)
+            
+            paint.color = colors[1]
+            canvas.drawCircle(cx2, cy2, r, paint)
+            strokePaint.color = strokeColors[1]
+            canvas.drawCircle(cx2, cy2, r, strokePaint)
+            canvas.drawText(circles.getOrNull(1)?.label ?: "", cx2, cy2 + 12f, textPaint)
+            
+            paint.color = colors[2]
+            canvas.drawCircle(cx3, cy3, r, paint)
+            strokePaint.color = strokeColors[2]
+            canvas.drawCircle(cx3, cy3, r, strokePaint)
+            canvas.drawText(circles.getOrNull(2)?.label ?: "", cx3, cy3 + 12f, textPaint)
+        }
+    }
+}
+
+internal fun ScreenCaptureService.renderHuashengLogicalDiagram(card: View, json: JSONObject, d: Float) {
+    val diagType = json.optString("diagram_type", "")
+    if (diagType.isEmpty()) return
+    
+    when (diagType) {
+        "arrow_graph" -> renderArrowGraph(card, json, d)
+        "euler_diagram" -> renderEulerDiagram(card, json, d)
+        "matrix_table" -> renderMatrixTable(card, json, d)
+    }
+}
+
+private fun ScreenCaptureService.renderArrowGraph(card: View, json: JSONObject, d: Float) {
+    val dp4 = (4*d).toInt(); val dp6 = (6*d).toInt(); val dp8 = (8*d).toInt()
+    val dp10 = (10*d).toInt(); val dp12 = (12*d).toInt(); val dp16 = (16*d).toInt()
+
+    val nodesArray = json.optJSONArray("nodes") ?: return
+    val edgesArray = json.optJSONArray("edges") ?: return
+
+    addDynamicSection(card, "🎨 逻辑推理关系图", d)
+    val container = getDynamicContainer(card) ?: return
+
+    // 外层精致卡片容器 (高级抹茶绿渐变与细圆角边框)
+    val diagramCard = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(0, dp4, 0, dp10)
+        }
+        setPadding(dp12, dp12, dp12, dp12)
+        val drawable = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xFFF3FBF6.toInt()) // 极雅致淡抹茶绿底色
+            cornerRadius = 16 * d
+            setStroke(1, 0xFFD1E7DD.toInt()) // 嫩绿边框
+        }
+        background = drawable
+        elevation = 2 * d
+    }
+
+    // 映射 nodes 快速存取
+    val nodeMap = mutableMapOf<String, String>()
+    for (i in 0 until nodesArray.length()) {
+        val n = nodesArray.optJSONObject(i) ?: continue
+        nodeMap[n.optString("id")] = n.optString("text")
+    }
+
+    // 我们为节点绘制竖向排列推理链
+    for (i in 0 until nodesArray.length()) {
+        val n = nodesArray.optJSONObject(i) ?: continue
+        val nodeId = n.optString("id")
+        val nodeText = n.optString("text")
+
+        // 渲染 Node Card
+        val nodeCard = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dp16, 0, dp16, 0)
+            }
+            setPadding(dp12, dp8, dp12, dp8)
+            val gd = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFFFFFFFF.toInt()) // 干净白底
+                cornerRadius = 10 * d
+                setStroke(2, 0xFFE2E8F0.toInt()) // 软质边框
+            }
+            background = gd
+        }
+        nodeCard.addView(TextView(this).apply {
+            text = "【$nodeId】$nodeText"
+            textSize = 12.5f
+            setTextColor(0xFF1F2937.toInt())
+            setTypeface(null, Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+        })
+        diagramCard.addView(nodeCard)
+
+        // 寻找此节点出发的所有 edges
+        val edgeList = mutableListOf<JSONObject>()
+        for (j in 0 until edgesArray.length()) {
+            val e = edgesArray.optJSONObject(j) ?: continue
+            if (e.optString("from") == nodeId) {
+                edgeList.add(e)
+            }
+        }
+
+        // 如果不是最后一个节点，且有边连接，或者直接渲染关系箭头
+        if (i < nodesArray.length() - 1) {
+            val edge = edgeList.firstOrNull() // 针对单链结构
+            val relationLabel = edge?.optString("label", "推出") ?: "推出"
+            val isNegative = edge?.optString("type") == "negative"
+            
+            val arrowLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, dp4, 0, dp4)
+                }
+            }
+            // 推出关系小气泡
+            val bubble = TextView(this).apply {
+                text = relationLabel
+                textSize = 9.5f
+                setTextColor(if (isNegative) 0xFFEF4444.toInt() else 0xFF2C5E43.toInt())
+                setPadding(dp6, 2, dp6, 2)
+                val gd = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(if (isNegative) 0xFFFEE2E2.toInt() else 0xFFE6EFEB.toInt())
+                    cornerRadius = 4 * d
+                }
+                background = gd
+            }
+            arrowLayout.addView(bubble)
+            // 向下箭头
+            arrowLayout.addView(TextView(this).apply {
+                text = "▼"
+                textSize = 12f
+                setTextColor(if (isNegative) 0xFFF43F5E.toInt() else 0xFF10B981.toInt())
+            })
+            diagramCard.addView(arrowLayout)
+        }
+    }
+    container.addView(diagramCard)
+}
+
+private fun ScreenCaptureService.renderEulerDiagram(card: View, json: JSONObject, d: Float) {
+    val dp4 = (4*d).toInt(); val dp8 = (8*d).toInt(); val dp10 = (10*d).toInt(); val dp12 = (12*d).toInt()
+
+    val circlesArray = json.optJSONArray("circles") ?: return
+    val relationsArray = json.optJSONArray("relations") ?: return
+
+    addDynamicSection(card, "🎨 概念集合关系图 (欧拉图)", d)
+    val container = getDynamicContainer(card) ?: return
+
+    // 整个图大容器卡片
+    val diagramCard = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(0, dp4, 0, dp10)
+        }
+        setPadding(dp12, dp12, dp12, dp12)
+        val drawable = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xFFFAFAFA.toInt())
+            cornerRadius = 16 * d
+            setStroke(1, 0xFFE5E7EB.toInt())
+        }
+        background = drawable
+        elevation = 2 * d
+    }
+
+    val cList = mutableListOf<CircleData>()
+    for (i in 0 until circlesArray.length()) {
+        val c = circlesArray.optJSONObject(i) ?: continue
+        cList.add(CircleData(c.optString("id"), c.optString("label")))
+    }
+    val rList = mutableListOf<RelationData>()
+    for (i in 0 until relationsArray.length()) {
+        val r = relationsArray.optJSONObject(i) ?: continue
+        val bArr = r.optJSONArray("between")
+        val bList = mutableListOf<String>()
+        if (bArr != null) {
+            for (j in 0 until bArr.length()) bList.add(bArr.optString(j))
+        }
+        rList.add(RelationData(r.optString("type"), bList, r.optString("label")))
+    }
+
+    // 动态装配 EulerDiagramView
+    val eulerView = EulerDiagramView(this).apply {
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (170 * d).toInt())
+        this.circles = cList
+        this.relations = rList
+    }
+    diagramCard.addView(eulerView)
+
+    // 添加下方的关系逻辑说明
+    if (rList.isNotEmpty()) {
+        val relText = StringBuilder("💡 集合关系解读：\n")
+        rList.forEachIndexed { idx, rel ->
+            relText.append("• ").append(rel.label)
+            if (idx < rList.size - 1) relText.append("\n")
+        }
+        diagramCard.addView(TextView(this).apply {
+            text = relText.toString()
+            textSize = 12f
+            setTextColor(0xFF2C5E43.toInt()) // 优雅抹茶深绿
+            setLineSpacing(0f, 1.3f)
+            setPadding(dp10, dp8, dp10, dp8)
+            val gd = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFFF0F9F4.toInt()) // 浅萌抹茶绿
+                cornerRadius = 8 * d
+            }
+            background = gd
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, dp8, 0, 0)
+            }
+        })
+    }
+
+    container.addView(diagramCard)
+}
+
+private fun ScreenCaptureService.renderMatrixTable(card: View, json: JSONObject, d: Float) {
+    val dp4 = (4*d).toInt(); val dp6 = (6*d).toInt(); val dp8 = (8*d).toInt()
+    val dp10 = (10*d).toInt(); val dp12 = (12*d).toInt()
+
+    val headersArray = json.optJSONArray("headers") ?: return
+    val rowsArray = json.optJSONArray("rows") ?: return
+
+    addDynamicSection(card, "📊 多维信息匹配表 (矩阵表格)", d)
+    val container = getDynamicContainer(card) ?: return
+
+    // 卡片外部容器
+    val diagramCard = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(0, dp4, 0, dp10)
+        }
+        setPadding(dp12, dp12, dp12, dp12)
+        val drawable = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xFFFFFFFF.toInt())
+            cornerRadius = 16 * d
+            setStroke(1, 0xFFE2E8F0.toInt())
+        }
+        background = drawable
+        elevation = 2 * d
+    }
+
+    // 表格水平滚动包装器
+    val scrollView = android.widget.HorizontalScrollView(this).apply {
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        isScrollbarFadingEnabled = true
+    }
+
+    // 表格纵向布局容器
+    val tableLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+    }
+
+    // 渲染表头 Headers
+    val headerRow = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xFFE8F0EC.toInt()) // 表头清雅绿背景
+            cornerRadius = 6 * d
+        }
+    }
+    for (i in 0 until headersArray.length()) {
+        val text = headersArray.optString(i, "")
+        headerRow.addView(TextView(this).apply {
+            this.text = text
+            textSize = 12f
+            setTextColor(0xFF2C5E43.toInt()) // 深抹茶绿字
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp12, dp8, dp12, dp8)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams((85 * d).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
+        })
+    }
+    tableLayout.addView(headerRow)
+
+    // 渲染各行数据 Rows
+    for (rIdx in 0 until rowsArray.length()) {
+        val rowArr = rowsArray.optJSONArray(rIdx) ?: continue
+        val rowLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, dp4, 0, 0)
+            }
+            background = android.graphics.drawable.GradientDrawable().apply {
+                // 抹茶绿斑马纹隔行变色
+                setColor(if (rIdx % 2 == 0) 0xFFFCFDFD.toInt() else 0xFFF3F8F5.toInt())
+                cornerRadius = 6 * d
+            }
+        }
+        for (cIdx in 0 until rowArr.length()) {
+            val cellText = rowArr.optString(cIdx, "")
+            rowLayout.addView(TextView(this).apply {
+                this.text = cellText
+                textSize = 11.5f
+                setTextColor(0xFF4B5563.toInt())
+                setPadding(dp12, dp8, dp12, dp8)
+                gravity = android.view.Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams((85 * d).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
+            })
+        }
+        tableLayout.addView(rowLayout)
+    }
+
+    scrollView.addView(tableLayout)
+    diagramCard.addView(scrollView)
+    container.addView(diagramCard)
+}

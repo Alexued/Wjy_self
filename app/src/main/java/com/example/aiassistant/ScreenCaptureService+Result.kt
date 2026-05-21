@@ -10,6 +10,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import org.json.JSONObject
 
 /**
@@ -397,6 +398,7 @@ internal fun ScreenCaptureService.updateResultCard(text: String, isAiResponse: B
                             else -> renderHuasheng(card, json, type)
                         }
                         showBankMatchTag(card)
+                        showPrimaryModelErrorTag(card)
                     } catch (e: Exception) {
                         if (onRenderFail != null) {
                             onRenderFail()
@@ -405,6 +407,7 @@ internal fun ScreenCaptureService.updateResultCard(text: String, isAiResponse: B
                             clearDynamicSections(card)
                             tvResult?.visibility = View.VISIBLE
                             tvResult?.text = formatSpannableText(cleanTextKeepSpan(text))
+                            showPrimaryModelErrorTag(card)
                         }
                     }
                 } else {
@@ -415,6 +418,7 @@ internal fun ScreenCaptureService.updateResultCard(text: String, isAiResponse: B
                         clearDynamicSections(card)
                         tvResult?.visibility = View.VISIBLE
                         tvResult?.text = formatSpannableText(cleanTextKeepSpan(text))
+                        showPrimaryModelErrorTag(card)
                     }
                 }
             } else {
@@ -422,6 +426,7 @@ internal fun ScreenCaptureService.updateResultCard(text: String, isAiResponse: B
                 clearDynamicSections(card)
                 tvResult?.visibility = View.VISIBLE
                 tvResult?.text = cleanHtmlText(text)
+                showPrimaryModelErrorTag(card)
             }
         }
     }
@@ -483,6 +488,62 @@ internal fun ScreenCaptureService.showBankMatchTag(card: View) {
     // 插入到标签行最前面
     layoutTags.addView(bankTag, 0)
     layoutTags.addView(answerTag, 1)
+}
+
+/** 在结果卡片顶部显示主模型故障告警标签（点击可查看详细故障诊断与排查指南） */
+internal fun ScreenCaptureService.showPrimaryModelErrorTag(card: View) {
+    val error = primaryModelError ?: return
+    val d = resources.displayMetrics.density
+    val dp6 = (6 * d).toInt()
+    val dp3 = (3 * d).toInt()
+    val dp4 = (4 * d).toInt()
+
+    val layoutTags = card.findViewById<LinearLayout>(R.id.layout_tags) ?: return
+    layoutTags.visibility = View.VISIBLE
+
+    // 故障告警标签（红色）
+    val errorTag = TextView(this).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { marginEnd = dp4 }
+        text = "⚠️ 主模型异常"
+        textSize = 10.5f
+        setTextColor(0xFFEF4444.toInt()) // 鲜红色
+        setTypeface(null, Typeface.BOLD)
+        setBackgroundResource(R.drawable.bg_tag_red)
+        setPadding(dp6, dp3, dp6, dp3)
+        
+        setOnClickListener {
+            // 点击弹出排查报告对话框（后台服务弹窗需指定 TYPE_APPLICATION_OVERLAY 窗口类型）
+            val contextThemeWrapper = androidx.appcompat.view.ContextThemeWrapper(this@showPrimaryModelErrorTag, R.style.Theme_AIAssistant)
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(contextThemeWrapper)
+                .setTitle("⚠️ 主模型故障诊断报告")
+                .setMessage(
+                    "主模型请求失败，系统已自动启用备用模型以保证搜题不中断。\n\n" +
+                    "【错误详情】\n" +
+                    "$error\n\n" +
+                    "【诊断与排查建议】\n" +
+                    "1. 🌐 连接超时或失败 (ConnectException / timeout)：某些直连官方 API 需要科学网络。请确认您的设备已连通科学网络，或者进入「AI大模型管理」修改 Base URL 镜像。\n" +
+                    "2. 🔑 鉴权未通过 (401 Unauthorized)：您的 API Key 填错了，或者复制时带入了多余空格，请在设置中重新检查并填写。\n" +
+                    "3. 💳 账户权限不足 (403 / 429)：API 额度可能已耗尽，或请求超过每分钟限制。"
+                )
+                .setPositiveButton("我知道了", null)
+                .setNeutralButton("复制报错") { _, _ ->
+                    val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("AI Error", error)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this@showPrimaryModelErrorTag, "已复制报错详情", Toast.LENGTH_SHORT).show()
+                }
+                .create()
+            
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            dialog.show()
+        }
+    }
+
+    // 插入到标签行的最前面，十分醒目但绝不侵占内容排版
+    layoutTags.addView(errorTag, 0)
 }
 
 internal fun ScreenCaptureService.hideAllSections(card: View) {
@@ -759,20 +820,53 @@ internal fun ScreenCaptureService.exportCardAsImage(card: View) {
 private fun ScreenCaptureService.setupConfigToolbar(card: android.view.View) {
     val tvTeacher = card.findViewById<android.widget.TextView>(R.id.tv_active_teacher_float)
     val tvType = card.findViewById<android.widget.TextView>(R.id.tv_active_type_float)
+    val tvMode = card.findViewById<android.widget.TextView>(R.id.tv_active_mode_float)
 
     val panelTeacher = card.findViewById<android.view.View>(R.id.panel_switch_teacher)
     val panelType = card.findViewById<android.view.View>(R.id.panel_switch_type)
 
     val btnTeacher = card.findViewById<android.view.View>(R.id.btn_switch_teacher_float)
     val btnType = card.findViewById<android.view.View>(R.id.btn_switch_type_float)
+    val btnMode = card.findViewById<android.view.View>(R.id.btn_switch_mode_float)
 
     if (tvTeacher == null || tvType == null || panelTeacher == null || panelType == null || btnTeacher == null || btnType == null) {
         return
     }
 
+    val currentType = AppPreferences.getCurrentQuestionType(this)
+
     // Bind current active values
     tvTeacher.text = "👤 老师: ${TeacherManager.activeTeacher.name}"
-    tvType.text = "🏷️ 题型: ${AppPreferences.getCurrentQuestionType(this).displayName}"
+    tvType.text = "🏷️ 题型: ${currentType.displayName}"
+
+    if (tvMode != null && btnMode != null) {
+        if (currentType == QuestionType.TU_XING_TUI_LI) {
+            tvMode.text = "🔮 模式: 仅截图"
+        } else {
+            val mode = AppPreferences.getAnalysisMode(this)
+            tvMode.text = if (mode == AppPreferences.ANALYSIS_MODE_VISION) "🔮 模式: 截图" else "🔮 模式: 文字"
+        }
+
+        btnMode.setOnClickListener {
+            val qType = AppPreferences.getCurrentQuestionType(this)
+            if (qType == QuestionType.TU_XING_TUI_LI) {
+                android.widget.Toast.makeText(this, "图形推理题只能发送截图解析", android.widget.Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 切换模式
+            val currentMode = AppPreferences.getAnalysisMode(this)
+            val newMode = if (currentMode == AppPreferences.ANALYSIS_MODE_VISION) AppPreferences.ANALYSIS_MODE_TEXT else AppPreferences.ANALYSIS_MODE_VISION
+            AppPreferences.setAnalysisMode(this, newMode)
+
+            tvMode.text = if (newMode == AppPreferences.ANALYSIS_MODE_VISION) "🔮 模式: 截图" else "🔮 模式: 文字"
+            
+            val modeStr = if (newMode == AppPreferences.ANALYSIS_MODE_VISION) "截图模式（直接发图）" else "文字模式（OCR后解析）"
+            android.widget.Toast.makeText(this, "已切换为：$modeStr，正在重新分析...", android.widget.Toast.LENGTH_SHORT).show()
+
+            reRunAnalysis()
+        }
+    }
 
     btnTeacher.setOnClickListener {
         if (panelTeacher.visibility == android.view.View.VISIBLE) {
@@ -844,6 +938,18 @@ private fun ScreenCaptureService.populateTypesFloat(card: android.view.View) {
         item.setOnClickListener {
             AppPreferences.setCurrentQuestionType(this, type)
             card.findViewById<android.widget.TextView>(R.id.tv_active_type_float)?.text = "🏷️ 题型: ${type.displayName}"
+            
+            // 题型切换时动态同步发送模式文本
+            val tvMode = card.findViewById<android.widget.TextView>(R.id.tv_active_mode_float)
+            if (tvMode != null) {
+                if (type == QuestionType.TU_XING_TUI_LI) {
+                    tvMode.text = "🔮 模式: 仅截图"
+                } else {
+                    val mode = AppPreferences.getAnalysisMode(this@populateTypesFloat)
+                    tvMode.text = if (mode == AppPreferences.ANALYSIS_MODE_VISION) "🔮 模式: 截图" else "🔮 模式: 文字"
+                }
+            }
+
             card.findViewById<android.view.View>(R.id.panel_switch_type)?.visibility = android.view.View.GONE
             reRunAnalysis()
         }

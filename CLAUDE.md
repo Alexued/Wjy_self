@@ -22,7 +22,7 @@ AIAssistant (AI伴学) is an Android app for Chinese civil service exam (公务�
 - `MainActivity` hosts fragments via BottomNavigationView: Home (settings/toggles), AiModel (model CRUD), KnowledgeCard (flashcards), Plan (study planner), Pomodoro (focus timer)
 - `ScreenCaptureService` is the core foreground service managing MediaProjection, floating overlays, and the AI pipeline. It's split across 6 files using Kotlin extension functions (prefixed with `+`):
   - `ScreenCaptureService.kt` — service lifecycle, MediaProjection, AI orchestration
-  - `+Ball.kt` — floating ball (main + silent-search) drag/click/progress, ball menu, dictionary overlay
+  - `+Ball.kt` — floating ball (main + silent-search) drag/click/progress, ball menu, dictionary overlay. Main ball is a 60dp semi-transparent dark circle with white Lens icon; small ball (silent search) is 36dp matching style. Both use `TYPE_APPLICATION_OVERLAY` system-level window.
   - `+Capture.kt` — ImageReader screenshot pipeline, area selection overlay
   - `+Result.kt` — result card lifecycle, JSON parsing, HTML formatting, export
   - `+Renderers_Huasheng.kt` — teacher-specific JSON-to-View renderers for all 7 types
@@ -76,10 +76,13 @@ AIAssistant (AI伴学) is an Android app for Chinese civil service exam (公务�
 - Bank data in `assets/bank/` — 6 JSON files in 2 categories: 判断 (定义判断, 类比推理, 逻辑判断) and 言语 (语句表达, 逻辑填空, 阅读理解)
 
 **Wrong Questions** (`questionbank/` package):
-- `WrongQuestionManager` — singleton managing wrong question lifecycle. Two entry points: `addFromBank()` (when question bank matches, stores full bank data: stem/options/answer/analysis) and `addFromOcr()` (no bank match, stores OCR text only). Images saved as JPEG to `filesDir/wrong_questions/`. All data in SharedPreferences as JSON array.
+- `WrongQuestionManager` — singleton managing wrong question lifecycle. Two entry points: `addFromBank()` (when question bank matches, stores full bank data: stem/options/answer/analysis) and `addFromOcr()` (no bank match, stores OCR text only). Images saved as PNG (lossless) to `filesDir/wrong_questions/`. All data in SharedPreferences as JSON array.
 - `WrongQuestionsActivity` — list view with source badge (题库/OCR), summary preview, date. Tab filter for all/unsummarized. Long-press to delete.
-- `WrongQuestionDetailActivity` — detail view showing: stem, options (correct answer highlighted), answer card, analysis card, summary notes, collapsible screenshot (default collapsed). Edit summary and delete actions.
+- `WrongQuestionDetailActivity` — detail view with tab switching between 题库解析 and AI解析. Features: stem, options (correct answer highlighted), answer card, analysis tabs, summary notes, collapsible screenshot (default collapsed), export as long image. Edit summary and delete actions.
+  - Export: renders all content (stem/options/answer/analysis) into a single bitmap, saves to gallery "AI伴学" folder, triggers share intent
+  - AI解析: only for bank-matched questions; auto-detects question type from `QuestionBankManager.getQuestionModuleName()` → maps to `QuestionType` → calls `OpenAIApiService.analyzeText()` with type-specific prompt
 - Recording flow: OCR text → `QuestionBankManager.search()` → if match, `addFromBank()` with structured data; else `addFromOcr()` with raw text
+- `QuestionBankDb.getQuestionModuleId()` / `getModuleName()` — resolve question → module chain for AI analysis type detection
 
 **Floating Ball Menu** (long-press):
 - 5 items: Question Type selector (always), Teacher selector (always), Dictionary (`"dict"`), Toggle capture mode (`"capture_mode"`), Close ball (`"close"`)
@@ -119,6 +122,7 @@ AIAssistant (AI伴学) is an Android app for Chinese civil service exam (公务�
 - **App.kt** sets `KMP_AFFINITY=none`, `OMP_NUM_THREADS=1`, etc. at earliest point to prevent PaddleOCR NCNN crashes on Android 16
 - **ProGuard** is enabled for release builds; keeps OkHttp, org.json, PaddleOCR JNI, and `AreaSelectionOverlay` model class
 - **Version catalog** in `gradle/libs.versions.toml`; additional JitPack repository in `settings.gradle.kts`
+- **Floating ball layout:** `layout_float_ball.xml` (main 60dp ball) and `layout_small_ball.xml` (silent search 36dp ball). Both use `bg_float_circle.xml` (semi-transparent #80000000 oval) and `ic_visual_search.xml` (white Lens icon).
 - **Key dependencies:** OkHttp (HTTP), PaddleOCR v5 (local OCR via JitPack), Flexbox (layout), WCDB (Tencent's SQLite fork, used for question bank FTS5 in `QuestionBankDb`)
 - Teacher renderers are per-teacher (currently only "huasheng" for 花生); adding a new teacher requires: (1) a JSON profile in `assets/teachers/`, (2) a `ScreenCaptureService+Renderers_{name}.kt` with JSON-to-View renderers for all 7 types
 - `qa_md/` and `question_bank/` at project root are data preparation scripts (Python), not part of the Android build

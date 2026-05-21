@@ -129,6 +129,18 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
+        <!-- 悬浮球下拉通知栏控制中心快捷开关磁贴服务 -->
+        <service
+            android:name=".FloatBallTileService"
+            android:icon="@drawable/ic_ai_ball"
+            android:label="悬浮球"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- 导出卡片图片分享 -->
         <provider
             android:name="androidx.core.content.FileProvider"

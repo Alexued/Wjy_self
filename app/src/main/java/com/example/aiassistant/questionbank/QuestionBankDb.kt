@@ -372,6 +372,26 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
         }
     }
 
+    /** 获取题目所属模块ID */
+    fun getQuestionModuleId(questionId: String): String? {
+        return readableDatabase.rawQuery(
+            "SELECT module_id FROM $T_QUESTIONS WHERE id = ?",
+            arrayOf(questionId)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }
+
+    /** 获取模块名称 */
+    fun getModuleName(moduleId: String): String? {
+        return readableDatabase.rawQuery(
+            "SELECT name FROM $T_MODULES WHERE id = ?",
+            arrayOf(moduleId)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }
+
     fun getQuestionCountByModule(moduleId: String): Int {
         return readableDatabase.rawQuery(
             "SELECT COUNT(*) FROM $T_QUESTIONS WHERE module_id = ?", arrayOf(moduleId)
