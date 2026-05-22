@@ -15,7 +15,7 @@ local.properties
 .gstack/
 .kotlin/
 
-# 无关目录
+# 无关文件和目录
 __MACOSX/
 tiku/
 test_aar/
@@ -24,4 +24,6 @@ com/
 docs/
 归档/
 高频800词/
+高频800词记忆版.md
 一般/
+CLAUDE.md
