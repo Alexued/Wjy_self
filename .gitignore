@@ -1,18 +1,27 @@
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+*.apk
+
+# IDE
+.idea/
+.claude/
 .gstack/
+.kotlin/
+
+# 无关目录
 __MACOSX/
 tiku/
+test_aar/
+test_aar_classes/
+com/
+docs/
+归档/
+高频800词/
+一般/
