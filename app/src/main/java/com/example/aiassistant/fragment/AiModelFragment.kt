@@ -706,64 +706,92 @@ class AiModelFragment : Fragment() {
         }
         Thread {
             try {
-                val jsonStr = ctx.contentResolver.openInputStream(uri)?.use { ins ->
-                    ins.bufferedReader().use { it.readText() }
+                // 1. 先只读取文件前 1024 字节探测备份类型，避免 85MB 大 JSON 直接载入内存
+                val prefix = ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    val reader = ins.bufferedReader()
+                    val charBuf = CharArray(1024)
+                    val readLen = reader.read(charBuf)
+                    if (readLen > 0) String(charBuf, 0, readLen) else ""
                 } ?: ""
 
-                if (jsonStr.isBlank()) {
+                if (prefix.isBlank()) {
                     throw Exception("备份文件为空")
                 }
 
-                val root = org.json.JSONObject(jsonStr)
-                val type = root.optString("backup_type")
+                // 2. 探测备份文件的大致类型
+                val isMultiBackup = prefix.contains("ai_assistant_multi_backup")
+                val isQuestionBank = prefix.contains("question_bank")
 
                 var prefRestored = false
                 var wqCount = 0
                 var cardCount = 0
                 var qbCount = 0
 
-                if (type == "ai_assistant_multi_backup") {
-                    if (root.has("preferences")) {
-                        val prefObj = root.getJSONObject("preferences")
-                        AppPreferences.importPreferencesJson(ctx, prefObj.toString())
-                        prefRestored = true
-                    }
-                    if (root.has("wrong_questions")) {
-                        val wqArr = root.getJSONArray("wrong_questions")
-                        saveWrongQuestionsJson(ctx, wqArr.toString())
-                        wqCount = wqArr.length()
-                    }
-                    if (root.has("knowledge_cards")) {
-                        val cardsObj = root.getJSONObject("knowledge_cards")
-                        val db = com.example.aiassistant.knowledge.KnowledgeCardDb(ctx)
-                        cardCount = db.importCardsFromJson(cardsObj.toString())
-                    }
-                    if (root.has("question_bank")) {
-                        val qbObj = root.getJSONObject("question_bank")
+                if (isQuestionBank && !isMultiBackup) {
+                    // ================== 🌟 终极超大题库纯流式还原通道 ==================
+                    ctx.contentResolver.openInputStream(uri)?.use { ins ->
                         val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
-                        qbCount = db.importQuestionsFromJson(qbObj.toString())
+                        qbCount = db.importQuestionsFromStream(ins)
+                    }
+                    if (qbCount < 0) {
+                        val errMsg = when (qbCount) {
+                            -4 -> "该文件是单分类专项题包，请使用上面的【导入题库数据】功能导入"
+                            else -> "题库 JSON 语法格式不匹配"
+                        }
+                        throw Exception(errMsg)
                     }
                 } else {
-                    when (type) {
-                        "preferences" -> {
-                            AppPreferences.importPreferencesJson(ctx, jsonStr)
+                    // 其它微小配置备份文件，继续沿用内存解析，保持 100% 稳定性
+                    val jsonStr = ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                        ins.bufferedReader().use { it.readText() }
+                    } ?: ""
+
+                    val root = org.json.JSONObject(jsonStr)
+                    val type = root.optString("backup_type")
+
+                    if (type == "ai_assistant_multi_backup") {
+                        if (root.has("preferences")) {
+                            val prefObj = root.getJSONObject("preferences")
+                            AppPreferences.importPreferencesJson(ctx, prefObj.toString())
                             prefRestored = true
                         }
-                        "knowledge_cards" -> {
+                        if (root.has("wrong_questions")) {
+                            val wqArr = root.getJSONArray("wrong_questions")
+                            saveWrongQuestionsJson(ctx, wqArr.toString())
+                            wqCount = wqArr.length()
+                        }
+                        if (root.has("knowledge_cards")) {
+                            val cardsObj = root.getJSONObject("knowledge_cards")
                             val db = com.example.aiassistant.knowledge.KnowledgeCardDb(ctx)
-                            cardCount = db.importCardsFromJson(jsonStr)
+                            cardCount = db.importCardsFromJson(cardsObj.toString())
                         }
-                        "question_bank" -> {
+                        if (root.has("question_bank")) {
+                            val qbObj = root.getJSONObject("question_bank")
                             val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
-                            qbCount = db.importQuestionsFromJson(jsonStr)
+                            qbCount = db.importQuestionsFromJson(qbObj.toString())
                         }
-                        else -> {
-                            if (jsonStr.trim().startsWith("[")) {
-                                val arr = org.json.JSONArray(jsonStr)
-                                saveWrongQuestionsJson(ctx, arr.toString())
-                                wqCount = arr.length()
-                            } else {
-                                throw Exception("未识别的备份文件格式")
+                    } else {
+                        when (type) {
+                            "preferences" -> {
+                                AppPreferences.importPreferencesJson(ctx, jsonStr)
+                                prefRestored = true
+                            }
+                            "knowledge_cards" -> {
+                                val db = com.example.aiassistant.knowledge.KnowledgeCardDb(ctx)
+                                cardCount = db.importCardsFromJson(jsonStr)
+                            }
+                            "question_bank" -> {
+                                val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
+                                qbCount = db.importQuestionsFromJson(jsonStr)
+                            }
+                            else -> {
+                                if (jsonStr.trim().startsWith("[")) {
+                                    val arr = org.json.JSONArray(jsonStr)
+                                    saveWrongQuestionsJson(ctx, arr.toString())
+                                    wqCount = arr.length()
+                                } else {
+                                    throw Exception("未识别的备份文件格式")
+                                }
                             }
                         }
                     }
@@ -873,16 +901,12 @@ class AiModelFragment : Fragment() {
         }
         Thread {
             try {
-                val jsonStr = ctx.contentResolver.openInputStream(uri)?.use { ins ->
-                    ins.bufferedReader().use { it.readText() }
-                } ?: ""
-
-                if (jsonStr.isBlank()) {
-                    throw Exception("选择的题库文件为空")
+                // ================== 🌟 纯流式单分类热导入（零内存消耗，杜绝 OOM！） ==================
+                var count = 0
+                ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
+                    count = db.importQuestionsFromStream(ins, parentModule, childModule)
                 }
-
-                val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
-                val count = db.importQuestionsFromJson(jsonStr, parentModule, childModule)
 
                 activity?.runOnUiThread {
                     dialog.dismiss()
@@ -896,8 +920,9 @@ class AiModelFragment : Fragment() {
                             .show()
                     } else {
                         val err = when (count) {
-                            -1 -> "该文件是整库备份，请使用【恢复备份】功能导入"
+                            -1 -> "该文件是全量整库备份，请使用下面的【恢复备份】功能导入"
                             -2 -> "分类参数错误"
+                            -4 -> "该文件是单分类专项题包，但请先检查其格式是否正确"
                             else -> "题库 JSON 语法格式不匹配"
                         }
                         Toast.makeText(ctx, "导入失败: $err", Toast.LENGTH_LONG).show()

@@ -800,4 +800,308 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
         }
         return result
     }
+
+    /**
+     * 终极流式导入 JSON 数据库。
+     * 支持大备份还原（无 parentModule 与 childModule），或大文件热导入（指定分类）。
+     * 使用 android.util.JsonReader 流式解析，内存分配极小，完全杜绝 85MB 大 JSON 的 OOM 闪退。
+     */
+    fun importQuestionsFromStream(
+        ins: java.io.InputStream,
+        parentModule: String? = null,
+        childModule: String? = null
+    ): Int {
+        val reader = android.util.JsonReader(ins.bufferedReader())
+        
+        // 🌟 强力探测首令牌 Token，防止在单分类热导入模式里误选整库文件（或反之）造成类型异常
+        val nextToken = reader.peek()
+        if (nextToken == android.util.JsonToken.BEGIN_OBJECT) {
+            if (!parentModule.isNullOrEmpty() || !childModule.isNullOrEmpty()) {
+                return -1 // 优雅返回 -1，告知 UI 此为全量整库备份文件
+            }
+        } else if (nextToken == android.util.JsonToken.BEGIN_ARRAY) {
+            if (parentModule.isNullOrEmpty() || childModule.isNullOrEmpty()) {
+                return -4 // 告知 UI 此为专项分类题库，请使用专项导入
+            }
+        }
+
+        val db = writableDatabase
+        var resultCount = 0
+        db.beginTransaction()
+        try {
+            if (parentModule.isNullOrEmpty() || childModule.isNullOrEmpty()) {
+                // ================== 1. 全量整库备份还原流模式 ==================
+                db.delete(T_QUESTIONS, null, null)
+                db.delete(T_MATERIALS, null, null)
+                db.delete(T_MODULES, null, null)
+                db.delete(T_FTS, null, null)
+
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    val rootKey = reader.nextName()
+                    when (rootKey) {
+                        "backup_type" -> {
+                            val type = reader.nextString()
+                            if (type != "question_bank") {
+                                throw Exception("备份文件类型不匹配：$type")
+                            }
+                        }
+                        "modules" -> {
+                            reader.beginArray()
+                            while (reader.hasNext()) {
+                                reader.beginObject()
+                                var id = ""
+                                var name = ""
+                                var parentId: String? = null
+                                var sortOrder = 0
+                                while (reader.hasNext()) {
+                                    val k = reader.nextName()
+                                    when (k) {
+                                        "id" -> id = reader.nextString()
+                                        "name" -> name = reader.nextString()
+                                        "parent_id" -> {
+                                            val p = reader.nextString()
+                                            if (p.isNotEmpty()) parentId = p
+                                        }
+                                        "sort_order" -> sortOrder = reader.nextInt()
+                                        else -> reader.skipValue()
+                                    }
+                                }
+                                reader.endObject()
+                                db.insert(T_MODULES, null, ContentValues().apply {
+                                    put("id", id)
+                                    put("name", name)
+                                    if (parentId != null) put("parent_id", parentId) else putNull("parent_id")
+                                    put("sort_order", sortOrder)
+                                })
+                            }
+                            reader.endArray()
+                        }
+                        "materials" -> {
+                            reader.beginArray()
+                            while (reader.hasNext()) {
+                                reader.beginObject()
+                                var id = ""
+                                var content = ""
+                                while (reader.hasNext()) {
+                                    val k = reader.nextName()
+                                    when (k) {
+                                        "id" -> id = reader.nextString()
+                                        "content" -> content = reader.nextString()
+                                        else -> reader.skipValue()
+                                    }
+                                }
+                                reader.endObject()
+                                db.insert(T_MATERIALS, null, ContentValues().apply {
+                                    put("id", id)
+                                    put("content", content)
+                                })
+                            }
+                            reader.endArray()
+                        }
+                        "questions" -> {
+                            reader.beginArray()
+                            while (reader.hasNext()) {
+                                reader.beginObject()
+                                var id = ""
+                                var moduleId = ""
+                                var stem = ""
+                                var stemHtml = ""
+                                var materialId = ""
+                                var options = "[]"
+                                var answer = ""
+                                var analysis = ""
+                                var kp = ""
+                                var source = ""
+                                var rate = 0
+                                var difficulty = "medium"
+                                var titleImages = "[]"
+                                while (reader.hasNext()) {
+                                    val k = reader.nextName()
+                                    when (k) {
+                                        "id" -> id = reader.nextString()
+                                        "module_id" -> moduleId = reader.nextString()
+                                        "stem" -> stem = reader.nextString()
+                                        "stem_html" -> stemHtml = reader.nextString()
+                                        "material_id" -> materialId = reader.nextString()
+                                        "options" -> options = reader.nextString()
+                                        "answer" -> answer = reader.nextString()
+                                        "analysis" -> analysis = reader.nextString()
+                                        "knowledge_point" -> kp = reader.nextString()
+                                        "source" -> source = reader.nextString()
+                                        "rate" -> rate = reader.nextInt()
+                                        "difficulty" -> difficulty = reader.nextString()
+                                        "title_images" -> titleImages = reader.nextString()
+                                        else -> reader.skipValue()
+                                    }
+                                }
+                                reader.endObject()
+                                
+                                db.insert(T_QUESTIONS, null, ContentValues().apply {
+                                    put("id", id)
+                                    put("module_id", moduleId)
+                                    put("stem", stem)
+                                    put("stem_html", stemHtml)
+                                    put("material_id", materialId)
+                                    put("options", options)
+                                    put("answer", answer)
+                                    put("analysis", analysis)
+                                    put("knowledge_point", kp)
+                                    put("source", source)
+                                    put("rate", rate)
+                                    put("difficulty", difficulty)
+                                    put("title_images", titleImages)
+                                })
+
+                                db.insert(T_FTS, null, ContentValues().apply {
+                                    put("id", id)
+                                    put("stem", toBigrams(stem))
+                                    put("tags", toBigrams(kp))
+                                })
+                                resultCount++
+                            }
+                            reader.endArray()
+                        }
+                        else -> reader.skipValue()
+                    }
+                }
+                reader.endObject()
+
+            } else {
+                // ================== 2. 自定义单分类热导入流模式 ==================
+                val parentId = "mod_${parentModule.hashCode().toString().replace("-", "n")}"
+                val childId = "mod_${childModule.hashCode().toString().replace("-", "n")}"
+
+                db.insertWithOnConflict(T_MODULES, null, ContentValues().apply {
+                    put("id", parentId)
+                    put("name", parentModule)
+                    putNull("parent_id")
+                    put("sort_order", 999)
+                }, SQLiteDatabase.CONFLICT_IGNORE)
+
+                db.insertWithOnConflict(T_MODULES, null, ContentValues().apply {
+                    put("id", childId)
+                    put("name", childModule)
+                    put("parent_id", parentId)
+                    put("sort_order", 999)
+                }, SQLiteDatabase.CONFLICT_IGNORE)
+
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    reader.beginObject()
+                    var keyName = ""
+                    var stemName = ""
+                    var stemHtml = ""
+                    var optionsStr = "[]"
+                    var answer = ""
+                    var analysis = ""
+                    var source = "自定义导入"
+                    var rate = 60
+                    var kpName = ""
+                    var titleImages = "[]"
+                    var materialContent = ""
+                    
+                    while (reader.hasNext()) {
+                        val k = reader.nextName()
+                        when (k) {
+                            "key", "id" -> keyName = reader.nextString()
+                            "title", "stem" -> stemName = reader.nextString()
+                            "title_html", "stem_html" -> stemHtml = reader.nextString()
+                            "answer" -> answer = reader.nextString()
+                            "analysis" -> analysis = reader.nextString()
+                            "source" -> source = reader.nextString()
+                            "rate" -> rate = reader.nextInt()
+                            "knowledge_point" -> kpName = reader.nextString()
+                            "material" -> materialContent = reader.nextString()
+                            "options" -> {
+                                val optList = mutableListOf<String>()
+                                reader.beginArray()
+                                while (reader.hasNext()) {
+                                    val optType = reader.peek()
+                                    if (optType == android.util.JsonToken.BEGIN_OBJECT) {
+                                        reader.beginObject()
+                                        var optText = ""
+                                        while (reader.hasNext()) {
+                                            val ok = reader.nextName()
+                                            if (ok == "text") optText = reader.nextString() else reader.skipValue()
+                                        }
+                                        reader.endObject()
+                                        optList.add(optText)
+                                    } else {
+                                        optList.add(reader.nextString())
+                                    }
+                                }
+                                reader.endArray()
+                                val optJsonArr = org.json.JSONArray()
+                                for (o in optList) {
+                                    optJsonArr.put(org.json.JSONObject().apply {
+                                        put("text", o)
+                                        put("html", "")
+                                        put("images", org.json.JSONArray())
+                                    })
+                                }
+                                optionsStr = optJsonArr.toString()
+                            }
+                            "title_images" -> {
+                                val imgList = mutableListOf<String>()
+                                reader.beginArray()
+                                while (reader.hasNext()) {
+                                    imgList.add(reader.nextString())
+                                }
+                                reader.endArray()
+                                val imgJsonArr = org.json.JSONArray()
+                                for (img in imgList) imgJsonArr.put(img)
+                                titleImages = imgJsonArr.toString()
+                            }
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.endObject()
+                    
+                    if (stemName.length < 5) continue
+                    if (keyName.isBlank()) {
+                        keyName = System.currentTimeMillis().toString() + "_" + resultCount
+                    }
+
+                    var materialId = ""
+                    if (materialContent.isNotEmpty()) {
+                        materialId = "mat_${materialContent.hashCode().toString().replace("-", "n")}"
+                        db.insertWithOnConflict(T_MATERIALS, null, ContentValues().apply {
+                            put("id", materialId)
+                            put("content", materialContent)
+                        }, SQLiteDatabase.CONFLICT_IGNORE)
+                    }
+
+                    db.insert(T_QUESTIONS, null, ContentValues().apply {
+                        put("id", keyName)
+                        put("module_id", childId)
+                        put("stem", stemName)
+                        put("stem_html", stemHtml)
+                        put("material_id", materialId)
+                        put("options", optionsStr)
+                        put("answer", answer)
+                        put("analysis", analysis)
+                        put("knowledge_point", kpName)
+                        put("source", source)
+                        put("rate", rate)
+                        put("difficulty", "medium")
+                        put("title_images", titleImages)
+                    })
+
+                    db.insert(T_FTS, null, ContentValues().apply {
+                        put("id", keyName)
+                        put("stem", toBigrams(stemName))
+                        put("tags", toBigrams(kpName))
+                    })
+                    resultCount++
+                }
+                reader.endArray()
+            }
+            
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return resultCount
+    }
 }
