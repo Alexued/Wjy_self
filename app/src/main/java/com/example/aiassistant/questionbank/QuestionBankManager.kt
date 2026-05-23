@@ -55,16 +55,8 @@ object QuestionBankManager {
                 val dbHelper = QuestionBankDb(appCtx)
                 db = dbHelper
 
-                // 完整性自愈检查：检测大模块总数和题目总数
-                var needReimport = !dbHelper.isImported()
-                if (!needReimport) {
-                    val modules = dbHelper.getModules()
-                    val totalQuestions = modules.sumOf { it.questionCount + it.children.sumOf { child -> child.questionCount } }
-                    if (totalQuestions < 20000 || modules.size < 5) {
-                        Log.w(TAG, "检测到题库数据残缺（共 $totalQuestions 题，${modules.size} 模块），触发自动修复重新导入...")
-                        needReimport = true
-                    }
-                }
+                // 完整性自愈检查：第一次安装数据库不存在时导入初始 Assets
+                val needReimport = !dbHelper.isImported()
 
                 if (needReimport) {
                     importing = true
