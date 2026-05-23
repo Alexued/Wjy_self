@@ -52,6 +52,17 @@
             android:scaleType="centerInside"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="搜索" />
+
+        <ImageView
+            android:id="@+id/btn_screenshot_ocr"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:src="@drawable/ic_visual_search"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="截屏识词" />
     </LinearLayout>
 
     <!-- 剪贴板提示 -->

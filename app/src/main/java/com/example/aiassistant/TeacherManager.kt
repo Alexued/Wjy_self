@@ -53,15 +53,6 @@ object TeacherManager {
         return activeTeacher.getPrompt(type)
     }
 
-    fun getR3Prompt(): String = activeTeacher.r3Prompt
-    fun getSelfCheckInstruction(): String = activeTeacher.selfCheckInstruction
-
-    fun getCustomR2Prompt(context: Context, type: QuestionType): String? {
-        val overlay = getOverlay(context, activeTeacher.id, type)
-        if (overlay != null) return null // 覆盖后的题型不适用自定义R2
-        return activeTeacher.getCustomR2Prompt(type)
-    }
-
     // ── 覆盖层（用户编辑内置老师 prompt） ────────────────────────────
 
     private fun overlayKey(teacherId: String, type: QuestionType): String =
@@ -179,8 +170,6 @@ object TeacherManager {
     private fun createFallbackTeacher(): TeacherConfig = TeacherConfig(
         id = "fallback",
         name = "默认",
-        prompts = emptyMap(),
-        r3Prompt = "",
-        selfCheckInstruction = ""
+        prompts = emptyMap()
     )
 }

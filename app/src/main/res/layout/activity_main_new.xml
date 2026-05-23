@@ -6,33 +6,113 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <!-- 顶部标题 -->
-    <LinearLayout
+    <!-- 顶部和右上角禅意雅致品牌及日历区 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:paddingTop="32dp"
-        android:paddingBottom="16dp">
+        android:background="@color/background">
 
-        <TextView
-            android:id="@+id/tv_title"
+        <!-- 顶部禅意雅致品牌栏 (支持点击互动拂尘刷新名言) -->
+        <LinearLayout
+            android:id="@+id/layout_brand_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:paddingTop="28dp"
+            android:paddingBottom="16dp"
+            android:background="@color/background"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground">
+
+            <!-- 禅风雅称 & 装饰花纹 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 左侧禅境云纹描边 -->
+                <View
+                    android:layout_width="16dp"
+                    android:layout_height="1.5dp"
+                    android:background="@color/primary_light"
+                    android:layout_marginEnd="10dp" />
+
+                <TextView
+                    android:id="@+id/tv_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="伴山学堂"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.15"
+                    android:textColor="@color/text_primary" />
+
+                <!-- 右侧禅境云纹描边 -->
+                <View
+                    android:layout_width="16dp"
+                    android:layout_height="1.5dp"
+                    android:background="@color/primary_light"
+                    android:layout_marginStart="10dp" />
+            </LinearLayout>
+
+            <!-- 动态名言警句行 -->
+            <TextView
+                android:id="@+id/tv_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:paddingHorizontal="36dp"
+                android:text="「 截图即析 · 静心观照 · 笃行致远 」"
+                android:textSize="12.5sp"
+                android:letterSpacing="0.04"
+                android:textColor="@color/text_secondary"
+                android:lineSpacingMultiplier="1.25" />
+
+            <!-- 雅致的极细水波绿分隔线 -->
+            <View
+                android:layout_width="60dp"
+                android:layout_height="2dp"
+                android:background="@color/primary_surface"
+                android:layout_marginTop="12dp" />
+        </LinearLayout>
+
+        <!-- 右上角农历禅意挂饰 -->
+        <LinearLayout
+            android:id="@+id/layout_zen_calendar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="AI 伴学"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary" />
+            android:layout_gravity="top|end"
+            android:orientation="vertical"
+            android:gravity="end"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="16dp"
+            android:alpha="0.8">
 
-        <TextView
-            android:id="@+id/tv_subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="截图即析，智能解读，高效学习"
-            android:textSize="13sp"
-            android:textColor="@color/text_secondary" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/tv_zen_lunar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="丙午年 小满"
+                android:textSize="10sp"
+                android:textColor="@color/primary"
+                android:letterSpacing="0.03"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_zen_suit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="宜 ‖ 释怀 读书"
+                android:textSize="9sp"
+                android:textColor="@color/text_secondary"
+                android:letterSpacing="0.02" />
+        </LinearLayout>
+    </FrameLayout>
 
     <!-- Fragment 容器 -->
     <FrameLayout

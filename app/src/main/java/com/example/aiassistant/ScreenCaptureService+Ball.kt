@@ -184,25 +184,6 @@ internal fun ScreenCaptureService.updateAttachedCardPosition() {
     try { windowManager.updateViewLayout(cardView, cardP) } catch (_: Exception) {}
 }
 
-internal fun ScreenCaptureService.updateFloatBallSize() {
-    val view = floatBallView ?: return
-    val params = floatBallParams ?: return
-    // 固定 60dp
-    val ballSize = dpToPx(60)
-
-    params.width = ballSize
-    params.height = ballSize
-    try {
-        windowManager.updateViewLayout(view, params)
-    } catch (e: Exception) {
-        Log.e(ScreenCaptureService.TAG, "Update ball size failed", e)
-    }
-    if (smallBallView != null) {
-        removeSmallBall()
-        showSmallBall()
-    }
-}
-
 // ── 小悬浮球（静默搜题） ──────────────────────────────────────────────
 
 internal fun ScreenCaptureService.showSmallBall() {
@@ -311,8 +292,8 @@ internal fun ScreenCaptureService.setupSmallBallTouch(view: View) {
 }
 
 internal fun ScreenCaptureService.onSmallBallClicked() {
-    if (silentSearchReady && silentSearchText != null) {
-        val cachedText = silentSearchText!!
+    val cachedText = silentSearchText ?: return
+    if (silentSearchReady) {
         silentSearchReady = false
         silentSearchText = null
         detachSmallBall()
@@ -427,7 +408,7 @@ internal fun ScreenCaptureService.showBallMenu() {
     // 显示并更新内容
     teacherItem?.let {
         it.visibility = View.VISIBLE
-        it.text = "👤 名师: ${TeacherManager.activeTeacher.name}"
+        it.text = "请益 · ${TeacherManager.activeTeacher.name}"
         it.setOnClickListener {
             dismissBallMenu()
             showTeacherSelectDialog()

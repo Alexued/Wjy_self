@@ -537,4 +537,94 @@ object AppPreferences {
 
     fun setKeepScreenOnEnabled(context: Context, enabled: Boolean) =
         prefs(context).edit().putBoolean(KEY_KEEP_SCREEN_ON, enabled).apply()
+
+    // ── AI Skills / Tool Calling 开启状态 ──
+    private const val KEY_TOOL_CALLING_ENABLED = "tool_calling_enabled"
+
+    fun isToolCallingEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_TOOL_CALLING_ENABLED, true) // 默认开启
+
+    fun setToolCallingEnabled(context: Context, enabled: Boolean) =
+        prefs(context).edit().putBoolean(KEY_TOOL_CALLING_ENABLED, enabled).apply()
+
+    // ── 自定义名言警句 ──────────────────────────────────────────────────
+    private const val KEY_CUSTOM_QUOTES = "custom_quotes"
+
+    fun getCustomQuotes(context: Context): List<Pair<String, String>> {
+        val raw = prefs(context).getString(KEY_CUSTOM_QUOTES, null)
+        if (raw.isNullOrBlank()) {
+            return emptyList()
+        }
+        val result = mutableListOf<Pair<String, String>>()
+        try {
+            val jsonArray = org.json.JSONArray(raw)
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val text = obj.optString("text", "")
+                val author = obj.optString("author", "")
+                if (text.isNotBlank()) {
+                    result.add(Pair(text, author))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return result
+    }
+
+    fun saveCustomQuotes(context: Context, quotes: List<Pair<String, String>>) {
+        val jsonArray = org.json.JSONArray()
+        for (q in quotes) {
+            val obj = org.json.JSONObject()
+            obj.put("text", q.first)
+            obj.put("author", q.second)
+            jsonArray.put(obj)
+        }
+        prefs(context).edit().putString(KEY_CUSTOM_QUOTES, jsonArray.toString()).apply()
+    }
+
+    /** 导出所有的 Preferences 配置数据为 JSON 字符串 */
+    fun exportPreferencesJson(context: Context): String {
+        return try {
+            val all = prefs(context).all
+            val obj = org.json.JSONObject()
+            obj.put("backup_type", "preferences")
+            obj.put("version", 1)
+            val data = org.json.JSONObject()
+            for ((key, value) in all) {
+                data.put(key, value)
+            }
+            obj.put("data", data)
+            obj.toString(2)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ""
+        }
+    }
+
+    /** 导入 Preferences 配置数据并覆盖本地配置 */
+    fun importPreferencesJson(context: Context, jsonStr: String): Boolean {
+        return try {
+            val obj = org.json.JSONObject(jsonStr)
+            if (obj.optString("backup_type") != "preferences") return false
+            val data = obj.getJSONObject("data")
+            val editor = prefs(context).edit()
+            val keys = data.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                when (val value = data.get(key)) {
+                    is Boolean -> editor.putBoolean(key, value)
+                    is Int -> editor.putInt(key, value)
+                    is Long -> editor.putLong(key, value)
+                    is Float -> editor.putFloat(key, value)
+                    is String -> editor.putString(key, value)
+                }
+            }
+            editor.apply()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

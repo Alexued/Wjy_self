@@ -50,8 +50,9 @@ internal fun ScreenCaptureService.showResultCard() {
             // 附着悬浮球模式：在悬浮球左侧弹出
             val ballParams = floatBallParams
             if (ballParams != null) {
-                initialW = dpToPx(340)
-                initialH = dpToPx(280)
+                val savedBounds = if (AppPreferences.isCardBoundsSaved(this)) AppPreferences.getCardBounds(this) else null
+                initialW = if (savedBounds != null && savedBounds[2] > 0) savedBounds[2] else dpToPx(340)
+                initialH = if (savedBounds != null && savedBounds[3] > 0) savedBounds[3] else dpToPx(280)
                 // 卡片在球的左侧，留 12dp 间距
                 initialX = ballParams.x - initialW - dpToPx(12)
                 // 卡片顶部对齐球的顶部
@@ -69,7 +70,9 @@ internal fun ScreenCaptureService.showResultCard() {
                     initialY = screenHeight - initialH - dpToPx(16)
                 }
             } else {
-                initialW = dpToPx(340); initialH = dpToPx(280)
+                val savedBounds = if (AppPreferences.isCardBoundsSaved(this)) AppPreferences.getCardBounds(this) else null
+                initialW = if (savedBounds != null && savedBounds[2] > 0) savedBounds[2] else dpToPx(340)
+                initialH = if (savedBounds != null && savedBounds[3] > 0) savedBounds[3] else dpToPx(280)
                 initialX = (screenWidth - initialW) / 2
                 initialY = screenHeight / 2
             }
@@ -463,7 +466,7 @@ internal fun ScreenCaptureService.showBankMatchTag(card: View) {
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { marginEnd = dp4 }
-        text = "📚 题库命中"
+        text = "题库命中"
         textSize = 10.5f
         setTextColor(0xFF10B981.toInt())
         setTypeface(null, Typeface.BOLD)
@@ -477,7 +480,7 @@ internal fun ScreenCaptureService.showBankMatchTag(card: View) {
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { marginEnd = dp4 }
-        text = "✓ 答案 ${match.answer}"
+        text = "正确答案: ${match.answer}"
         textSize = 10.5f
         setTextColor(0xFF3B82F6.toInt())
         setTypeface(null, Typeface.BOLD)
@@ -589,20 +592,6 @@ internal fun ScreenCaptureService.tryParseJsonResponse(text: String): JSONObject
     }
 }
 
-internal fun ScreenCaptureService.renderJsonResult(card: View, json: JSONObject) {
-    clearDynamicSections(card)
-    val type = detectSchemaType(json)
-    when (TeacherManager.activeTeacher.id) {
-        "huasheng" -> renderHuasheng(card, json, type)
-        else -> renderHuasheng(card, json, type)
-    }
-}
-
-/** 保留兼容旧调用：内部使用的工具方法 */
-internal fun ScreenCaptureService.createTagCompat(text: String, colorHex: String, bgRes: Int): TextView =
-    createTag(text, colorHex, bgRes, resources.displayMetrics.density)
-
-
 internal fun ScreenCaptureService.createTag(text: String, colorHex: String, bgRes: Int, d: Float): TextView {
     val dp6 = (6*d).toInt(); val dp3 = (3*d).toInt()
     return TextView(this).apply {
@@ -613,10 +602,6 @@ internal fun ScreenCaptureService.createTag(text: String, colorHex: String, bgRe
 }
 
 // ── HTML 文本格式化 ───────────────────────────────────────────────────
-
-internal fun ScreenCaptureService.stripHtmlSpan(text: String): String {
-    return text.replace(Regex("<span[^>]*>"), "").replace("</span>", "")
-}
 
 internal fun ScreenCaptureService.cleanHtmlText(text: String): String {
     return text
@@ -704,8 +689,8 @@ internal fun ScreenCaptureService.formatSpannableText(text: String): CharSequenc
 }
 
 // ── 编辑模式 ────────────────────────────────────────────────────────
-private var isEditMode = false
-internal var resultCardParams: WindowManager.LayoutParams? = null
+@Volatile private var isEditMode = false
+@Volatile internal var resultCardParams: WindowManager.LayoutParams? = null
 
 internal fun ScreenCaptureService.toggleEditMode(card: View) {
     isEditMode = !isEditMode
@@ -955,5 +940,351 @@ private fun ScreenCaptureService.populateTypesFloat(card: android.view.View) {
         }
         container.addView(item)
     }
+}
+
+/**
+ * 📷 词库截屏识词结果渲染卡片 (抹茶绿圆角禅意悬浮窗)
+ */
+fun ScreenCaptureService.showDictOcrResultCard(
+    matchedList: List<com.example.aiassistant.dictionary.DictItem>,
+    rawText: String
+) {
+    // 1. 如果已有先前的卡片在，先清理掉它
+    removeResultCard()
+
+    // 2. 窗口参数
+    val params = WindowManager.LayoutParams(
+        dpToPx(340),
+        dpToPx(380), // 380dp 高，容纳足够多的选项词语
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+        PixelFormat.TRANSLUCENT
+    ).apply {
+        gravity = Gravity.CENTER
+    }
+
+    // 3. 构建根布局 (雅淡抹茶绿高层卡片)
+    val context = this
+    val rootView = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xFFF3F7F5.toInt()) // 雅淡抹茶绿
+            cornerRadius = dpToPx(24).toFloat()
+            setStroke(dpToPx(2), 0xFF8FBC8F.toInt()) // 抹茶绿禅意包边
+        }
+    }
+
+    // 4. 构建 Header (标题栏 + 拖动交互 + 关闭按钮)
+    val headerLayout = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    val tvTitle = TextView(context).apply {
+        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        text = "📖 截屏识词匹配结果"
+        textSize = 15f
+        setTextColor(0xFF333333.toInt())
+        setTypeface(null, Typeface.BOLD)
+    }
+
+    val btnClose = TextView(context).apply {
+        layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30))
+        text = "✕"
+        textSize = 14f
+        setTextColor(0xFF8FBC8F.toInt())
+        gravity = Gravity.CENTER
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xFFFFFFFF.toInt())
+            cornerRadius = dpToPx(15).toFloat()
+            setStroke(dpToPx(1), 0xFF8FBC8F.toInt())
+        }
+        setOnClickListener {
+            removeResultCard()
+        }
+    }
+
+    headerLayout.addView(tvTitle)
+    headerLayout.addView(btnClose)
+    rootView.addView(headerLayout)
+
+    // 拖动交互
+    headerLayout.setOnTouchListener(object : View.OnTouchListener {
+        private var initialX = 0; private var initialY = 0
+        private var initialTouchX = 0f; private var initialTouchY = 0f
+        override fun onTouch(v: View, event: MotionEvent): Boolean {
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = params.x; initialY = params.y
+                    initialTouchX = event.rawX; initialTouchY = event.rawY
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    params.x = initialX + (event.rawX - initialTouchX).toInt()
+                    params.y = initialY + (event.rawY - initialTouchY).toInt()
+                    windowManager.updateViewLayout(rootView, params)
+                    return true
+                }
+            }
+            return false
+        }
+    })
+
+    // 5. 识别预览折叠区
+    val tvPreviewLabel = TextView(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dpToPx(8) }
+        text = "🔍 截屏识别题目预览（点击展开/折叠）"
+        textSize = 11f
+        setTextColor(0xFF888888.toInt())
+    }
+    
+    val tvPreview = TextView(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dpToPx(4) }
+        text = rawText
+        textSize = 11f
+        setTextColor(0xFF666666.toInt())
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        visibility = View.GONE
+    }
+    
+    tvPreviewLabel.setOnClickListener {
+        tvPreview.visibility = if (tvPreview.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+    }
+    
+    rootView.addView(tvPreviewLabel)
+    rootView.addView(tvPreview)
+
+    // 6. 中间滚动内容区
+    val scrollContainer = android.widget.ScrollView(context).apply {
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        ).apply { topMargin = dpToPx(12) }
+    }
+
+    val listContainer = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    if (matchedList.isEmpty()) {
+        val tvEmpty = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(120)
+            )
+            text = "未在截屏选项中匹配到词库项\n💡 提示：框选行测试题可直接自动提取选项成语解析！"
+            textSize = 13f
+            setTextColor(0xFF999999.toInt())
+            gravity = Gravity.CENTER
+        }
+        listContainer.addView(tvEmpty)
+    } else {
+        // 依次渲染每一个匹配到的 DictItem
+        for (item in matchedList) {
+            val wordName: String
+            val pinyinText: String
+            val briefExpl: String
+            val tagText: String
+            val tagColorBg: Int
+            
+            when (item) {
+                is com.example.aiassistant.dictionary.DictItem.IdiomItem -> {
+                    wordName = item.data.word
+                    pinyinText = item.data.pinyin
+                    briefExpl = item.data.explanation
+                    tagText = "成语"
+                    tagColorBg = 0xFF5C8271.toInt() // 抹茶绿
+                }
+                is com.example.aiassistant.dictionary.DictItem.WordItem -> {
+                    wordName = item.data.word
+                    pinyinText = item.data.pinyin
+                    briefExpl = item.data.explanation
+                    tagText = "字"
+                    tagColorBg = 0xFF4A708B.toInt() // 雅致蓝
+                }
+                is com.example.aiassistant.dictionary.DictItem.CiItem -> {
+                    wordName = item.data.ci
+                    pinyinText = ""
+                    briefExpl = item.data.explanation
+                    tagText = "词语"
+                    tagColorBg = 0xFFCD853F.toInt() // 橘木黄
+                }
+                is com.example.aiassistant.dictionary.DictItem.XiehouyuItem -> {
+                    wordName = item.data.riddle
+                    pinyinText = ""
+                    briefExpl = "答案：${item.data.answer}"
+                    tagText = "歇后"
+                    tagColorBg = 0xFF8B4513.toInt() // 褐木棕
+                }
+            }
+
+            // 单个词条小卡片
+            val itemLayout = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpToPx(10), dpToPx(10), dpToPx(10), dpToPx(10))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dpToPx(8) }
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xFFFFFFFF.toInt()) // 纯白卡片底色
+                    cornerRadius = dpToPx(12).toFloat()
+                    setStroke(dpToPx(1), 0xFFE0E0E0.toInt())
+                }
+                isClickable = true
+                isFocusable = true
+                
+                // 点击弹窗展示词语深度详情
+                setOnClickListener {
+                    showDictOcrDetailDialog(item)
+                }
+            }
+
+            // 第一行：标签 + 词语名
+            val firstLine = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val tvTag = TextView(context).apply {
+                text = tagText
+                textSize = 9.5f
+                setTextColor(0xFFFFFFFF.toInt())
+                setPadding(dpToPx(5), dpToPx(2), dpToPx(5), dpToPx(2))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(tagColorBg)
+                    cornerRadius = dpToPx(4).toFloat()
+                }
+            }
+
+            val tvWord = TextView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dpToPx(6) }
+                text = wordName
+                textSize = 14f
+                setTextColor(0xFF222222.toInt())
+                setTypeface(null, Typeface.BOLD)
+            }
+
+            val tvPinyin = TextView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = dpToPx(8) }
+                text = if (pinyinText.isNotBlank()) "[$pinyinText]" else ""
+                textSize = 11f
+                setTextColor(0xFF666666.toInt())
+            }
+
+            firstLine.addView(tvTag)
+            firstLine.addView(tvWord)
+            firstLine.addView(tvPinyin)
+
+            // 第二行：简短释义
+            val tvExpl = TextView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dpToPx(4) }
+                text = briefExpl.trim()
+                textSize = 11.5f
+                setTextColor(0xFF555555.toInt())
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+
+            itemLayout.addView(firstLine)
+            itemLayout.addView(tvExpl)
+            listContainer.addView(itemLayout)
+        }
+    }
+
+    scrollContainer.addView(listContainer)
+    rootView.addView(scrollContainer)
+
+    // 7. 将悬浮窗展示在 WindowManager 中
+    resultCardView = rootView
+    windowManager.addView(rootView, params)
+}
+
+/**
+ * 弹出高保真抹茶绿圆角“词语深度解析详情框”
+ */
+private fun ScreenCaptureService.showDictOcrDetailDialog(item: com.example.aiassistant.dictionary.DictItem) {
+    val contextThemeWrapper = androidx.appcompat.view.ContextThemeWrapper(this, R.style.Theme_AIAssistant)
+    
+    val dialogTitle: String
+    val dialogMessage: String
+    
+    when (item) {
+        is com.example.aiassistant.dictionary.DictItem.IdiomItem -> {
+            dialogTitle = "成语：${item.data.word}"
+            dialogMessage = buildString {
+                append("【拼音】\n${item.data.pinyin}\n\n")
+                append("【解释】\n${item.data.explanation}\n\n")
+                if (item.data.derivation.isNotBlank() && item.data.derivation != "无") {
+                    append("【出处典故】\n${item.data.derivation}\n\n")
+                }
+                if (item.data.example.isNotBlank() && item.data.example != "无") {
+                    append("【例句】\n${item.data.example}\n")
+                }
+            }
+        }
+        is com.example.aiassistant.dictionary.DictItem.WordItem -> {
+            dialogTitle = "汉字：${item.data.word}"
+            dialogMessage = buildString {
+                append("【拼音】\n${item.data.pinyin}\n\n")
+                append("【部首】 ${item.data.radicals}  |  【笔画】 ${item.data.strokes} 画\n\n")
+                append("【解释】\n${item.data.explanation}\n\n")
+                if (item.data.more.isNotBlank() && item.data.more != "无") {
+                    append("【更多】\n${item.data.more}\n")
+                }
+            }
+        }
+        is com.example.aiassistant.dictionary.DictItem.CiItem -> {
+            dialogTitle = "词语：${item.data.ci}"
+            dialogMessage = buildString {
+                append("【解释】\n${item.data.explanation}\n")
+            }
+        }
+        is com.example.aiassistant.dictionary.DictItem.XiehouyuItem -> {
+            dialogTitle = "歇后语：${item.data.riddle}"
+            dialogMessage = buildString {
+                append("【答案】\n${item.data.answer}\n")
+            }
+        }
+    }
+
+    val dialog = androidx.appcompat.app.AlertDialog.Builder(contextThemeWrapper)
+        .setTitle(dialogTitle)
+        .setMessage(dialogMessage)
+        .setPositiveButton("确 定", null)
+        .create()
+
+    // 零权限 WindowManager 前台层级挂载
+    dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+    dialog.show()
+    
+    // 给详情 Dialog 自定义样式微调，渲染抹茶绿按钮
+    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(0xFF5C8271.toInt())
 }
 

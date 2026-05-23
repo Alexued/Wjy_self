@@ -201,7 +201,7 @@ class PomodoroDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB
                     stats.add(DailyStats(
                         date = formatDate(startMs),
                         totalFocusMinutes = it.getInt(it.getColumnIndexOrThrow("focus_minutes")),
-                        tomatoCount = it.getInt(it.getColumnIndexOrThrow("completed")),
+                        tomatoCount = it.getInt(it.getColumnIndexOrThrow("total")),
                         completedCount = it.getInt(it.getColumnIndexOrThrow("completed")),
                         targetCount = 0
                     ))

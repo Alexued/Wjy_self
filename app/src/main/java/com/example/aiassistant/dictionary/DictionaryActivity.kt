@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aiassistant.R
+import com.example.aiassistant.captureAndShowSelector
 
 class DictionaryActivity : AppCompatActivity() {
 
@@ -56,6 +57,17 @@ class DictionaryActivity : AppCompatActivity() {
 
         findViewById<ImageView>(R.id.btn_back).setOnClickListener { finish() }
         findViewById<ImageView>(R.id.btn_search).setOnClickListener { doSearch() }
+        findViewById<ImageView>(R.id.btn_screenshot_ocr).setOnClickListener {
+            val service = com.example.aiassistant.ScreenCaptureService.instance
+            if (service != null) {
+                com.example.aiassistant.ScreenCaptureService.isDictOcrMode = true
+                service.captureAndShowSelector(false)
+                android.widget.Toast.makeText(this, "📷 请框选屏幕上的题目以检索选项词义", android.widget.Toast.LENGTH_LONG).show()
+                moveTaskToBack(true)
+            } else {
+                android.widget.Toast.makeText(this, "💡 请先在主页开启悬浮球录屏服务", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
 
         // 实时搜索：输入变化时延迟触发
         etSearch.addTextChangedListener(object : TextWatcher {

@@ -4,10 +4,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="6dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="2dp"
-    app:strokeWidth="0dp"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="20dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/border_light"
+    app:strokeWidth="1.2dp"
+    app:cardBackgroundColor="@color/background_card_glass"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground">
@@ -17,30 +19,42 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
-        android:padding="16dp">
+        android:padding="20dp">
 
+        <!-- 雅致的茶色禅风短线装饰 -->
+        <View
+            android:layout_width="16dp"
+            android:layout_height="2dp"
+            android:background="@color/primary_light"
+            android:layout_marginBottom="12dp" />
+
+        <!-- 拟物化图标 -->
         <TextView
             android:id="@+id/tv_icon"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="32sp"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="10dp" />
 
+        <!-- 分类书目名称 -->
         <TextView
             android:id="@+id/tv_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
+            android:textSize="14.5sp"
             android:textStyle="bold"
-            android:textColor="#1F2937"
-            android:layout_marginBottom="4dp" />
+            android:textColor="@color/text_primary"
+            android:letterSpacing="0.04"
+            android:layout_marginBottom="6dp" />
 
+        <!-- 收录条目计数 -->
         <TextView
             android:id="@+id/tv_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="11sp"
-            android:textColor="#9CA3AF" />
+            android:textColor="@color/text_secondary"
+            android:letterSpacing="0.02" />
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

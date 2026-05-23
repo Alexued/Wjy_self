@@ -4,83 +4,107 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/bg_ball_menu"
-    android:padding="8dp"
-    android:minWidth="160dp">
+    android:padding="10dp"
+    android:minWidth="180dp">
+
+    <!-- 顶部微标装饰 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="伴山静学菜单"
+        android:textSize="11sp"
+        android:textColor="@color/text_tertiary"
+        android:gravity="center"
+        android:letterSpacing="0.1"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="6dp" />
 
     <TextView
         android:id="@+id/menu_dict"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="46dp"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:text="词典查询"
-        android:textSize="15sp"
+        android:text="释义 · 词典查询"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:textColor="@color/text_primary"
         android:background="?android:attr/selectableItemBackground"
         android:drawableStart="@drawable/ic_dictionary"
-        android:drawablePadding="12dp" />
+        android:drawablePadding="12dp"
+        android:drawableTint="@color/primary" />
 
     <View
         android:id="@+id/menu_divider_1"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#EEEEEE"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp" />
+        android:background="@color/border_light"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp" />
 
     <TextView
         android:id="@+id/menu_capture_mode"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="46dp"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:text="切换截图模式"
-        android:textSize="15sp"
+        android:text="裁切 · 截图模式"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:textColor="@color/text_primary"
-        android:background="?android:attr/selectableItemBackground" />
+        android:background="?android:attr/selectableItemBackground"
+        android:drawableStart="@drawable/ic_visual_search"
+        android:drawablePadding="12dp"
+        android:drawableTint="@color/primary" />
 
     <View
         android:id="@+id/menu_divider_2"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#EEEEEE"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp" />
-
-
+        android:background="@color/border_light"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp" />
 
     <TextView
         android:id="@+id/menu_switch_teacher"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="46dp"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:text="👤 切换名师"
-        android:textSize="15sp"
+        android:text="请益 · 切换名师"
+        android:textSize="14sp"
+        android:textStyle="bold"
         android:textColor="@color/text_primary"
-        android:background="?android:attr/selectableItemBackground" />
+        android:background="?android:attr/selectableItemBackground"
+        android:drawableStart="@drawable/ic_ai_ball"
+        android:drawablePadding="12dp"
+        android:drawableTint="@color/primary" />
 
     <View
         android:id="@+id/menu_divider_4"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#EEEEEE"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp" />
+        android:background="@color/border_light"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp" />
 
     <TextView
         android:id="@+id/menu_close_ball"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="46dp"
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:text="关闭悬浮球"
-        android:textSize="15sp"
-        android:textColor="#EF4444"
-        android:background="?android:attr/selectableItemBackground" />
+        android:text="隐去 · 关闭悬浮球"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#D9383A"
+        android:background="?android:attr/selectableItemBackground"
+        android:drawableStart="@drawable/ic_close"
+        android:drawablePadding="12dp"
+        android:drawableTint="#D9383A" />
 
 </LinearLayout>

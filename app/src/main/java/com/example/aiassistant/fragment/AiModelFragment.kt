@@ -21,6 +21,33 @@ import com.google.android.material.textfield.TextInputEditText
 
 class AiModelFragment : Fragment() {
 
+    // 数据备份多选状态缓存：[系统设置, 错题本, 知识卡片, 本地题库]
+    private var exportOptions = booleanArrayOf(true, true, true, true)
+
+    private val exportDataLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            performExport(uri)
+        }
+    }
+
+    private val importDataLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            performImport(uri)
+        }
+    }
+
+    private val importBankLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            showBankImportDialog(uri)
+        }
+    }
+
     private lateinit var rv: RecyclerView
     private var adapter: ModelAdapter? = null
 
@@ -33,8 +60,10 @@ class AiModelFragment : Fragment() {
     // 显示设置
     private lateinit var switchDefaultFullscreen: SwitchMaterial
     private lateinit var switchSilentSearch: SwitchMaterial
+    private lateinit var switchToolCalling: SwitchMaterial
     private lateinit var sbBallSize: SeekBar
     private lateinit var tvBallSizeVal: TextView
+    private lateinit var btnEditCustomQuotes: MaterialButton
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? =
         inflater.inflate(R.layout.fragment_ai_model, container, false)
 
@@ -243,8 +272,10 @@ class AiModelFragment : Fragment() {
 
         switchDefaultFullscreen = view.findViewById(R.id.switch_default_fullscreen)
         switchSilentSearch = view.findViewById(R.id.switch_silent_search)
+        switchToolCalling = view.findViewById(R.id.switch_tool_calling)
         sbBallSize = view.findViewById(R.id.sb_ball_size)
         tvBallSizeVal = view.findViewById(R.id.tv_ball_size_val)
+        btnEditCustomQuotes = view.findViewById(R.id.btn_edit_custom_quotes)
     }
 
     private fun loadSettingsConfig() {
@@ -252,6 +283,7 @@ class AiModelFragment : Fragment() {
 
         switchDefaultFullscreen.isChecked = AppPreferences.isDefaultFullscreen(ctx)
         switchSilentSearch.isChecked = AppPreferences.isSilentSearchEnabled(ctx)
+        switchToolCalling.isChecked = AppPreferences.isToolCallingEnabled(ctx)
 
         val mode = AppPreferences.getCaptureMode(ctx)
         rgCaptureMode.check(if (mode == AppPreferences.MODE_FIXED_AREA) R.id.rb_fixed_area else R.id.rb_custom_area)
@@ -283,6 +315,11 @@ class AiModelFragment : Fragment() {
 
         switchSilentSearch.setOnCheckedChangeListener { _, isChecked ->
             AppPreferences.setSilentSearchEnabled(ctx, isChecked)
+        }
+
+        switchToolCalling.setOnCheckedChangeListener { _, isChecked ->
+            AppPreferences.setToolCallingEnabled(ctx, isChecked)
+            Toast.makeText(ctx, if (isChecked) "智能解题技能已启用" else "智能解题技能已禁用", Toast.LENGTH_SHORT).show()
         }
 
         sbBallSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -371,6 +408,16 @@ class AiModelFragment : Fragment() {
                 .setNegativeButton("取消", null)
                 .show()
         }
+        btnEditCustomQuotes.setOnClickListener { showQuotesEditDialog() }
+
+        // 数据备份与管理按钮绑定
+        val btnExport = view?.findViewById<android.view.View>(R.id.btn_export_data)
+        val btnImport = view?.findViewById<android.view.View>(R.id.btn_import_data)
+        val btnImportBank = view?.findViewById<android.view.View>(R.id.btn_import_question_bank)
+
+        btnExport?.setOnClickListener { showExportDialog() }
+        btnImport?.setOnClickListener { triggerImport() }
+        btnImportBank?.setOnClickListener { triggerImportBank() }
     }
 
     private fun updateFixedUI(mode: Int) {
@@ -442,6 +489,454 @@ class AiModelFragment : Fragment() {
             (resources.displayMetrics.widthPixels * 0.9).toInt(),
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
+    }
+
+    private fun showQuotesEditDialog() {
+        val ctx = requireContext()
+        val form = LayoutInflater.from(ctx).inflate(R.layout.dialog_quotes_edit, null)
+        val rvList = form.findViewById<RecyclerView>(R.id.rv_quotes_list)
+        val etText = form.findViewById<EditText>(R.id.et_quote_text)
+        val etAuthor = form.findViewById<EditText>(R.id.et_quote_author)
+        val btnAdd = form.findViewById<Button>(R.id.btn_add_quote)
+        val btnReset = form.findViewById<Button>(R.id.btn_reset_quotes)
+
+        val currentCustom = AppPreferences.getCustomQuotes(ctx)
+        val workingList = if (currentCustom.isNotEmpty()) {
+            currentCustom.toMutableList()
+        } else {
+            mutableListOf(
+                Pair("博学之，审问之，慎思之，明辨之，笃行之。", "——《礼记》"),
+                Pair("积土成山，风雨兴焉；积水成渊，蛟龙生焉。", "—— 荀子"),
+                Pair("不积跬步，无以至千里；不积小流，无以成江海。", "—— 荀子"),
+                Pair("操千曲而后晓声，观千剑而后识器。", "—— 刘勰"),
+                Pair("天下难事，必作于易；天下大事，必作于细。", "—— 老子"),
+                Pair("知之者不如好之者，好之者不如乐之者。", "—— 孔子"),
+                Pair("纸上得来终觉浅，绝知此事要躬行。", "—— 陆游"),
+                Pair("静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。", "—— 诸葛亮"),
+                Pair("路漫漫其修远兮，吾将上下而求索。", "—— 屈原"),
+                Pair("水滴石穿，非力使然，恒也。", "—— 罗曼·罗兰")
+            )
+        }
+
+        rvList.layoutManager = LinearLayoutManager(ctx)
+        lateinit var quotesAdapter: QuotesAdapter
+        quotesAdapter = QuotesAdapter(workingList) { index ->
+            if (index in workingList.indices) {
+                workingList.removeAt(index)
+                quotesAdapter.notifyItemRemoved(index)
+                quotesAdapter.notifyItemRangeChanged(index, workingList.size - index)
+            }
+        }
+        rvList.adapter = quotesAdapter
+
+        btnAdd.setOnClickListener {
+            val text = etText.text?.toString()?.trim() ?: ""
+            var author = etAuthor.text?.toString()?.trim() ?: ""
+            if (text.isBlank()) {
+                Toast.makeText(ctx, "名言正文不能为空", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (author.isNotEmpty() && !author.startsWith("——") && !author.startsWith("—")) {
+                author = "—— $author"
+            }
+            workingList.add(Pair(text, author))
+            quotesAdapter.notifyItemInserted(workingList.size - 1)
+            rvList.scrollToPosition(workingList.size - 1)
+            etText.setText("")
+            etAuthor.setText("")
+            Toast.makeText(ctx, "已加入临时库", Toast.LENGTH_SHORT).show()
+        }
+
+        btnReset.setOnClickListener {
+            AlertDialog.Builder(ctx)
+                .setTitle("确认恢复")
+                .setMessage("是否确认恢复为系统内置的禅意名言？这会清空您的自定义设置。")
+                .setPositiveButton("确认") { _, _ ->
+                    workingList.clear()
+                    workingList.addAll(
+                        listOf(
+                            Pair("博学之，审问之，慎思之，明辨之，笃行之。", "——《礼记》"),
+                            Pair("积土成山，风雨兴焉；积水成渊，蛟龙生焉。", "—— 荀子"),
+                            Pair("不积跬步，无以至千里；不积小流，无以成江海。", "—— 荀子"),
+                            Pair("操千曲而后晓声，观千剑而后识器。", "—— 刘勰"),
+                            Pair("天下难事，必作于易；天下大事，必作于细。", "—— 老子"),
+                            Pair("知之者不如好之者，好之者不如乐之者。", "—— 孔子"),
+                            Pair("纸上得来终觉浅，绝知此事要躬行。", "—— 陆游"),
+                            Pair("静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。", "—— 诸葛亮"),
+                            Pair("路漫漫其修远兮，吾将上下而求索。", "—— 屈原"),
+                            Pair("水滴石穿，非力使然，恒也。", "—— 罗曼·罗兰")
+                        )
+                    )
+                    quotesAdapter.notifyDataSetChanged()
+                    Toast.makeText(ctx, "已恢复，点击「保存」生效", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+
+        val dialog = AlertDialog.Builder(ctx, R.style.TransparentDialog)
+            .setView(form)
+            .setPositiveButton("保存库内容") { _, _ ->
+                AppPreferences.saveCustomQuotes(ctx, workingList)
+                Toast.makeText(ctx, "名言库保存成功！主页刷新后生效。", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("放弃更改", null)
+            .create()
+        dialog.window?.setDimAmount(0.5f)
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    private fun showExportDialog() {
+        val ctx = context ?: return
+        val items = arrayOf("系统设置 (Preferences)", "错题本记录 (Wrong Questions)", "知识卡片 (Knowledge Cards)", "本地题库 (Question Bank)")
+        
+        AlertDialog.Builder(ctx)
+            .setTitle("选择要导出的数据")
+            .setMultiChoiceItems(items, exportOptions) { _, which, isChecked ->
+                exportOptions[which] = isChecked
+            }
+            .setPositiveButton("确定并保存") { _, _ ->
+                var selectedAny = false
+                for (opt in exportOptions) {
+                    if (opt) {
+                        selectedAny = true
+                        break
+                    }
+                }
+                if (!selectedAny) {
+                    Toast.makeText(ctx, "至少选择一项进行导出", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                exportDataLauncher.launch("ai_assistant_backup.json")
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun triggerImport() {
+        importDataLauncher.launch(arrayOf("application/json", "text/*"))
+    }
+
+    private fun triggerImportBank() {
+        importBankLauncher.launch(arrayOf("application/json", "text/*"))
+    }
+
+    private fun getWrongQuestionsJson(context: android.content.Context): String {
+        return context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
+            .getString("wrong_questions_list", "[]") ?: "[]"
+    }
+
+    private fun saveWrongQuestionsJson(context: android.content.Context, jsonStr: String) {
+        context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString("wrong_questions_list", jsonStr)
+            .apply()
+    }
+
+    private fun performExport(uri: android.net.Uri) {
+        val ctx = context ?: return
+        val dialog = android.app.ProgressDialog(ctx).apply {
+            setMessage("正在打包导出备份，请稍候...")
+            setCancelable(false)
+            show()
+        }
+        Thread {
+            try {
+                val root = org.json.JSONObject()
+                root.put("backup_type", "ai_assistant_multi_backup")
+                root.put("version", 1)
+                root.put("timestamp", System.currentTimeMillis())
+
+                if (exportOptions[0]) {
+                    val prefStr = AppPreferences.exportPreferencesJson(ctx)
+                    if (prefStr.isNotEmpty()) {
+                        root.put("preferences", org.json.JSONObject(prefStr))
+                    }
+                }
+
+                if (exportOptions[1]) {
+                    val wqStr = getWrongQuestionsJson(ctx)
+                    if (wqStr.isNotEmpty()) {
+                        root.put("wrong_questions", org.json.JSONArray(wqStr))
+                    }
+                }
+
+                if (exportOptions[2]) {
+                    val cardsStr = com.example.aiassistant.knowledge.KnowledgeCardDb(ctx).exportAllCardsJson()
+                    if (cardsStr.isNotEmpty()) {
+                        root.put("knowledge_cards", org.json.JSONObject(cardsStr))
+                    }
+                }
+
+                if (exportOptions[3]) {
+                    val bankStr = com.example.aiassistant.questionbank.QuestionBankDb(ctx).exportQuestionsJson()
+                    if (bankStr.isNotEmpty()) {
+                        root.put("question_bank", org.json.JSONObject(bankStr))
+                    }
+                }
+
+                ctx.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(root.toString(2).toByteArray(Charsets.UTF_8))
+                }
+
+                activity?.runOnUiThread {
+                    dialog.dismiss()
+                    Toast.makeText(ctx, "🎉 数据备份导出成功！", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                activity?.runOnUiThread {
+                    dialog.dismiss()
+                    Toast.makeText(ctx, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun performImport(uri: android.net.Uri) {
+        val ctx = context ?: return
+        val dialog = android.app.ProgressDialog(ctx).apply {
+            setMessage("正在还原备份，请稍候...")
+            setCancelable(false)
+            show()
+        }
+        Thread {
+            try {
+                val jsonStr = ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    ins.bufferedReader().use { it.readText() }
+                } ?: ""
+
+                if (jsonStr.isBlank()) {
+                    throw Exception("备份文件为空")
+                }
+
+                val root = org.json.JSONObject(jsonStr)
+                val type = root.optString("backup_type")
+
+                var prefRestored = false
+                var wqCount = 0
+                var cardCount = 0
+                var qbCount = 0
+
+                if (type == "ai_assistant_multi_backup") {
+                    if (root.has("preferences")) {
+                        val prefObj = root.getJSONObject("preferences")
+                        AppPreferences.importPreferencesJson(ctx, prefObj.toString())
+                        prefRestored = true
+                    }
+                    if (root.has("wrong_questions")) {
+                        val wqArr = root.getJSONArray("wrong_questions")
+                        saveWrongQuestionsJson(ctx, wqArr.toString())
+                        wqCount = wqArr.length()
+                    }
+                    if (root.has("knowledge_cards")) {
+                        val cardsObj = root.getJSONObject("knowledge_cards")
+                        val db = com.example.aiassistant.knowledge.KnowledgeCardDb(ctx)
+                        cardCount = db.importCardsFromJson(cardsObj.toString())
+                    }
+                    if (root.has("question_bank")) {
+                        val qbObj = root.getJSONObject("question_bank")
+                        val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
+                        qbCount = db.importQuestionsFromJson(qbObj.toString())
+                    }
+                } else {
+                    when (type) {
+                        "preferences" -> {
+                            AppPreferences.importPreferencesJson(ctx, jsonStr)
+                            prefRestored = true
+                        }
+                        "knowledge_cards" -> {
+                            val db = com.example.aiassistant.knowledge.KnowledgeCardDb(ctx)
+                            cardCount = db.importCardsFromJson(jsonStr)
+                        }
+                        "question_bank" -> {
+                            val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
+                            qbCount = db.importQuestionsFromJson(jsonStr)
+                        }
+                        else -> {
+                            if (jsonStr.trim().startsWith("[")) {
+                                val arr = org.json.JSONArray(jsonStr)
+                                saveWrongQuestionsJson(ctx, arr.toString())
+                                wqCount = arr.length()
+                            } else {
+                                throw Exception("未识别的备份文件格式")
+                            }
+                        }
+                    }
+                }
+
+                activity?.runOnUiThread {
+                    dialog.dismiss()
+                    val sb = StringBuilder("🎉 备份数据已成功恢复：\n")
+                    if (prefRestored) sb.append("• 系统配置已覆盖应用\n")
+                    if (wqCount > 0) sb.append("• 错题本恢复 $wqCount 道错题\n")
+                    if (cardCount > 0) sb.append("• 知识卡片新增 $cardCount 张卡片\n")
+                    if (qbCount > 0) sb.append("• 题库恢复 $qbCount 道题\n")
+                    if (!prefRestored && wqCount == 0 && cardCount == 0 && qbCount == 0) {
+                        sb.append("• 无新增增量数据（已排重合并）")
+                    }
+
+                    AlertDialog.Builder(ctx)
+                        .setTitle("恢复成功")
+                        .setMessage(sb.toString())
+                        .setPositiveButton("确定", null)
+                        .show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                activity?.runOnUiThread {
+                    dialog.dismiss()
+                    Toast.makeText(ctx, "恢复失败: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun showBankImportDialog(uri: android.net.Uri) {
+        val ctx = context ?: return
+        val layout = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            val density = resources.displayMetrics.density
+            val pad = (20 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+
+        val tvTitle = TextView(ctx).apply {
+            text = "自定义题库导入配置"
+            textSize = 17f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(ctx.getColor(R.color.text_primary))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = (14 * resources.displayMetrics.density).toInt()
+            }
+        }
+        layout.addView(tvTitle)
+
+        val etParent = EditText(ctx).apply {
+            hint = "目标一级大分类 (例如: 判断推理)"
+            setText("自定义大分类")
+            textSize = 14f
+            setBackgroundResource(R.drawable.bg_default_chip)
+            val padding = (12 * resources.displayMetrics.density).toInt()
+            setPadding(padding, padding, padding, padding)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = (12 * resources.displayMetrics.density).toInt()
+            }
+        }
+        layout.addView(etParent)
+
+        val etChild = EditText(ctx).apply {
+            hint = "目标二级子分类 (例如: 类比推理)"
+            setText("自定义子分类")
+            textSize = 14f
+            setBackgroundResource(R.drawable.bg_default_chip)
+            val padding = (12 * resources.displayMetrics.density).toInt()
+            setPadding(padding, padding, padding, padding)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        layout.addView(etChild)
+
+        AlertDialog.Builder(ctx, R.style.TransparentDialog)
+            .setView(layout)
+            .setPositiveButton("开始导入") { _, _ ->
+                val parentName = etParent.text.toString().trim()
+                val childName = etChild.text.toString().trim()
+                if (parentName.isEmpty() || childName.isEmpty()) {
+                    Toast.makeText(ctx, "分类名称不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                performBankImport(uri, parentName, childName)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun performBankImport(uri: android.net.Uri, parentModule: String, childModule: String) {
+        val ctx = context ?: return
+        val dialog = android.app.ProgressDialog(ctx).apply {
+            setMessage("正在解析并导入自定义题库，请稍候...")
+            setCancelable(false)
+            show()
+        }
+        Thread {
+            try {
+                val jsonStr = ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    ins.bufferedReader().use { it.readText() }
+                } ?: ""
+
+                if (jsonStr.isBlank()) {
+                    throw Exception("选择的题库文件为空")
+                }
+
+                val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
+                val count = db.importQuestionsFromJson(jsonStr, parentModule, childModule)
+
+                activity?.runOnUiThread {
+                    dialog.dismiss()
+                    if (count >= 0) {
+                        com.example.aiassistant.questionbank.QuestionBankManager.init(ctx)
+
+                        AlertDialog.Builder(ctx)
+                            .setTitle("导入成功")
+                            .setMessage("🎉 自定义题库成功入库！\n\n大分类：$parentModule\n子分类：$childModule\n入库题数：$count 道题目")
+                            .setPositiveButton("确定", null)
+                            .show()
+                    } else {
+                        val err = when (count) {
+                            -1 -> "该文件是整库备份，请使用【恢复备份】功能导入"
+                            -2 -> "分类参数错误"
+                            else -> "题库 JSON 语法格式不匹配"
+                        }
+                        Toast.makeText(ctx, "导入失败: $err", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                activity?.runOnUiThread {
+                    dialog.dismiss()
+                    Toast.makeText(ctx, "导入失败: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+}
+
+private class QuotesAdapter(
+    private val items: MutableList<Pair<String, String>>,
+    private val onDelete: (Int) -> Unit
+) : RecyclerView.Adapter<QuotesAdapter.VH>() {
+
+    class VH(view: View) : RecyclerView.ViewHolder(view) {
+        val tvText: TextView = view.findViewById(R.id.tv_item_quote_text)
+        val tvAuthor: TextView = view.findViewById(R.id.tv_item_quote_author)
+        val btnDelete: View = view.findViewById(R.id.btn_delete_quote)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_quote_edit, parent, false)
+        return VH(v)
+    }
+
+    override fun getItemCount() = items.size
+
+    override fun onBindViewHolder(h: VH, pos: Int) {
+        val item = items[pos]
+        h.tvText.text = item.first
+        h.tvAuthor.text = item.second.ifBlank { "无名氏" }
+        h.btnDelete.setOnClickListener { onDelete(h.bindingAdapterPosition) }
     }
 }
 

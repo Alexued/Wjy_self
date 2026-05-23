@@ -13,7 +13,7 @@ object QuestionBankManager {
     @Volatile private var ready = false
     @Volatile private var importing = false
 
-    private val onReadyListeners = mutableListOf<() -> Unit>()
+    private val onReadyListeners = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
 
     fun addOnReadyListener(listener: () -> Unit) {
         if (ready) {

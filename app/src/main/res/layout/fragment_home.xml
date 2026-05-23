@@ -10,9 +10,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="18dp">
 
-        <!-- ===== 悬浮球开关卡片 ===== -->
+        <!-- ===== 禅窗浮生 (悬浮球配置) ===== -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -20,7 +20,7 @@
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border_light"
-            app:strokeWidth="1dp"
+            app:strokeWidth="1.2dp"
             app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
@@ -28,6 +28,58 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="20dp">
+
+                <!-- 标题与禅意名言 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <View
+                        android:layout_width="4dp"
+                        android:layout_height="16dp"
+                        android:background="@color/primary"
+                        android:layout_marginEnd="10dp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="禅窗浮生"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="静听松风 · 观照屏幕"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+
+                    <!-- 一个精致的禅意装饰性印章 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="浮窗"
+                        android:textSize="10sp"
+                        android:textColor="@color/primary"
+                        android:background="@drawable/bg_knowledge_tag"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="6dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <!-- 悬浮球启用开关 -->
                 <LinearLayout
@@ -46,7 +98,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="开启悬浮球"
-                            android:textSize="18sp"
+                            android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -54,9 +106,9 @@
                             android:id="@+id/tv_float_status"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
+                            android:layout_marginTop="4dp"
                             android:text="未启动"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
@@ -64,7 +116,9 @@
                         android:id="@+id/switch_float_ball"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:checked="false" />
+                        android:checked="false"
+                        app:thumbTint="@color/primary"
+                        app:trackTint="@color/border_light" />
                 </LinearLayout>
 
                 <View
@@ -91,7 +145,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="悬浮窗常亮模式"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -99,8 +153,8 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="开启后，只要悬浮球存在，屏幕将保持常亮"
-                            android:textSize="13sp"
+                            android:text="只要悬浮球存在，屏幕将保持长亮"
+                            android:textSize="12sp"
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
@@ -108,13 +162,15 @@
                         android:id="@+id/switch_keep_screen_on"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:checked="false" />
+                        android:checked="false"
+                        app:thumbTint="@color/primary"
+                        app:trackTint="@color/border_light" />
                 </LinearLayout>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===== 错题本与悬浮球行为卡片 ===== -->
+        <!-- ===== 笃行录 (错题研习) ===== -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -122,7 +178,7 @@
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border_light"
-            app:strokeWidth="1dp"
+            app:strokeWidth="1.2dp"
             app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
@@ -131,7 +187,7 @@
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <!-- 错题本入口 -->
+                <!-- 错题本入口布局 -->
                 <LinearLayout
                     android:id="@+id/btn_wrong_questions"
                     android:layout_width="match_parent"
@@ -142,6 +198,12 @@
                     android:clickable="true"
                     android:focusable="true">
 
+                    <View
+                        android:layout_width="4dp"
+                        android:layout_height="16dp"
+                        android:background="@color/pomodoro_red"
+                        android:layout_marginEnd="10dp" />
+
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -151,8 +213,8 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="我的错题本"
-                            android:textSize="18sp"
+                            android:text="笃行录（错题研习）"
+                            android:textSize="16sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
 
@@ -181,46 +243,53 @@
                     android:layout_marginBottom="16dp" />
 
                 <!-- 悬浮球单击行为选择 -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="悬浮球单击动作"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
-
-                <RadioGroup
-                    android:id="@+id/rg_float_action"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="vertical">
 
-                    <RadioButton
-                        android:id="@+id/rb_action_ai"
-                        android:layout_width="0dp"
+                    <TextView
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="🔍 AI 智能分析"
-                        android:textSize="13sp"
+                        android:text="悬浮球单击动作"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
                         android:textColor="@color/text_primary"
-                        android:buttonTint="@color/primary" />
+                        android:layout_marginBottom="12dp" />
 
-                    <RadioButton
-                        android:id="@+id/rb_action_record"
-                        android:layout_width="0dp"
+                    <RadioGroup
+                        android:id="@+id/rg_float_action"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="📝 记录错题"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_primary"
-                        android:buttonTint="@color/primary" />
-                </RadioGroup>
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <RadioButton
+                            android:id="@+id/rb_action_ai"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="🔍 AI 智能分析"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary"
+                            android:buttonTint="@color/primary"
+                            android:layout_marginEnd="8dp" />
+
+                        <RadioButton
+                            android:id="@+id/rb_action_record"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📝 仅记录错题"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_primary"
+                            android:buttonTint="@color/primary" />
+                    </RadioGroup>
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-
-        <!-- ===== 题型选择卡片 ===== -->
+        <!-- ===== 传道指引 (名师解惑) ===== -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -228,7 +297,7 @@
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border_light"
-            app:strokeWidth="1dp"
+            app:strokeWidth="1.2dp"
             app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
@@ -237,13 +306,18 @@
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <!-- 当前老师 -->
+                <!-- 老师指引 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
+                    android:gravity="center_vertical">
+
+                    <View
+                        android:layout_width="4dp"
+                        android:layout_height="16dp"
+                        android:background="@color/primary_light"
+                        android:layout_marginEnd="10dp" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -254,8 +328,8 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="当前老师"
-                            android:textSize="12sp"
+                            android:text="传道指引（名师解惑）"
+                            android:textSize="14sp"
                             android:textColor="@color/text_secondary" />
 
                         <TextView
@@ -269,49 +343,55 @@
                             android:textColor="@color/text_primary" />
                     </LinearLayout>
 
+                    <!-- 请益名师按钮 -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_manage_teachers"
                         android:layout_width="wrap_content"
                         android:layout_height="36dp"
-                        android:text="管理"
+                        android:text="请益"
                         android:textSize="12sp"
-                        app:cornerRadius="8dp"
+                        app:cornerRadius="10dp"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:textColor="@color/primary"
-                        android:visibility="gone" />
+                        android:textStyle="bold" />
                 </LinearLayout>
 
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="@color/card_divider"
-                    android:layout_marginBottom="16dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="当前题型"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
-
-                <HorizontalScrollView
+                <!-- 当前题型 (支持横向滑动，隐藏时结构仍需完整保留以配合 HomeFragment.kt) -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:scrollbars="none">
+                    android:orientation="vertical"
+                    android:layout_marginTop="12dp">
 
-                    <LinearLayout
-                        android:id="@+id/layout_type_chips"
+                    <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical" />
-                </HorizontalScrollView>
+                        android:text="当前研习题型"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="8dp"
+                        android:visibility="gone" />
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:scrollbars="none"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/layout_type_chips"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical" />
+                    </HorizontalScrollView>
+                </LinearLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===== 题库模块列表 ===== -->
+        <!-- ===== 静心研习 (题海观照) ===== -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -319,7 +399,7 @@
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
             app:strokeColor="@color/border_light"
-            app:strokeWidth="1dp"
+            app:strokeWidth="1.2dp"
             app:cardBackgroundColor="@color/background_card_glass">
 
             <LinearLayout
@@ -335,24 +415,38 @@
                     android:gravity="center_vertical"
                     android:layout_marginBottom="16dp">
 
+                    <View
+                        android:layout_width="4dp"
+                        android:layout_height="16dp"
+                        android:background="@color/correct_green"
+                        android:layout_marginEnd="10dp" />
+
                     <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="题库"
-                        android:textSize="18sp"
+                        android:text="静心研习（真题观照）"
+                        android:textSize="16sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary" />
 
+                    <!-- 印章样式的数据总数显示 -->
                     <TextView
                         android:id="@+id/tv_total_count"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="加载中..."
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary" />
+                        android:textSize="11sp"
+                        android:textColor="@color/correct_green"
+                        android:background="@color/correct_green_bg"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:textStyle="bold" />
                 </LinearLayout>
 
+                <!-- RecyclerView 高度完全由包裹内容决定，完全适配外层 ScrollView 滚动 -->
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rv_modules"
                     android:layout_width="match_parent"

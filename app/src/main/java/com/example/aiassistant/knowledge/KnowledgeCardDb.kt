@@ -292,6 +292,107 @@ class KnowledgeCardDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
         return getCardsByCategory(categoryId)
     }
 
+    /** 导出所有的知识卡片与分类数据为 JSON 字符串 */
+    fun exportAllCardsJson(): String {
+        return try {
+            val root = org.json.JSONObject()
+            root.put("backup_type", "knowledge_cards")
+            root.put("version", 1)
+
+            val catArr = org.json.JSONArray()
+            readableDatabase.query(T_CATEGORIES, null, null, null, null, null, null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    catArr.put(org.json.JSONObject().apply {
+                        put("id", cursor.getString(cursor.getColumnIndexOrThrow(COL_CAT_ID)))
+                        put("name", cursor.getString(cursor.getColumnIndexOrThrow(COL_CAT_NAME)))
+                        put("icon", cursor.getString(cursor.getColumnIndexOrThrow(COL_CAT_ICON)))
+                        put("is_visible", cursor.getInt(cursor.getColumnIndexOrThrow(COL_CAT_VISIBLE)))
+                        put("sort_order", cursor.getInt(cursor.getColumnIndexOrThrow(COL_CAT_SORT)))
+                    })
+                }
+            }
+            root.put("categories", catArr)
+
+            val cardArr = org.json.JSONArray()
+            readableDatabase.query(T_CARDS, null, null, null, null, null, null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    cardArr.put(org.json.JSONObject().apply {
+                        put("id", cursor.getLong(cursor.getColumnIndexOrThrow(COL_ID)))
+                        put("category", cursor.getString(cursor.getColumnIndexOrThrow(COL_CATEGORY)))
+                        put("title", cursor.getString(cursor.getColumnIndexOrThrow(COL_TITLE)))
+                        put("content", cursor.getString(cursor.getColumnIndexOrThrow(COL_CONTENT)))
+                        put("tags", cursor.getString(cursor.getColumnIndexOrThrow(COL_TAGS)))
+                        put("is_custom", cursor.getInt(cursor.getColumnIndexOrThrow(COL_IS_CUSTOM)))
+                        put("created_at", cursor.getLong(cursor.getColumnIndexOrThrow(COL_CREATED_AT)))
+                        put("updated_at", cursor.getLong(cursor.getColumnIndexOrThrow(COL_UPDATED_AT)))
+                    })
+                }
+            }
+            root.put("cards", cardArr)
+            root.toString(2)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ""
+        }
+    }
+
+    /** 从备份 JSON 中还原分类与知识卡片数据，自动排重并补充不存在的分类 */
+    fun importCardsFromJson(jsonStr: String): Int {
+        val db = writableDatabase
+        var result = 0
+        db.beginTransaction()
+        try {
+            val root = org.json.JSONObject(jsonStr)
+            if (root.optString("backup_type") != "knowledge_cards") return -1
+            
+            val catArr = root.getJSONArray("categories")
+            for (i in 0 until catArr.length()) {
+                val cat = catArr.getJSONObject(i)
+                val id = cat.getString("id")
+                db.insertWithOnConflict(T_CATEGORIES, null, ContentValues().apply {
+                    put(COL_CAT_ID, id)
+                    put(COL_CAT_NAME, cat.getString("name"))
+                    put(COL_CAT_ICON, cat.getString("icon"))
+                    put(COL_CAT_VISIBLE, cat.getInt("is_visible"))
+                    put(COL_CAT_SORT, cat.getInt("sort_order"))
+                }, SQLiteDatabase.CONFLICT_IGNORE)
+            }
+
+            var count = 0
+            val cardArr = root.getJSONArray("cards")
+            for (i in 0 until cardArr.length()) {
+                val card = cardArr.getJSONObject(i)
+                val title = card.getString("title")
+                val category = card.getString("category")
+                
+                val existsCursor = db.query(T_CARDS, arrayOf(COL_ID), "$COL_CATEGORY = ? AND $COL_TITLE = ?", arrayOf(category, title), null, null, null)
+                val exists = existsCursor.moveToFirst()
+                existsCursor.close()
+
+                if (!exists) {
+                    db.insert(T_CARDS, null, ContentValues().apply {
+                        put(COL_CATEGORY, category)
+                        put(COL_TITLE, title)
+                        put(COL_CONTENT, card.getString("content"))
+                        put(COL_TAGS, card.getString("tags"))
+                        put(COL_IS_CUSTOM, card.getInt("is_custom"))
+                        put(COL_CREATED_AT, card.getLong("created_at"))
+                        put(COL_UPDATED_AT, card.getLong("updated_at"))
+                    })
+                    count++
+                }
+            }
+            db.setTransactionSuccessful()
+            result = count
+        } catch (e: Exception) {
+            e.printStackTrace()
+            result = -2
+        } finally {
+            db.endTransaction()
+        }
+        return result
+    }
+
     // ── 工具方法 ──────────────────────────────────────────────────────
 
     private fun cursorToCard(cursor: android.database.Cursor): KnowledgeCard {

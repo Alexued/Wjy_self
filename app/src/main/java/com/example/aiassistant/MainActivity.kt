@@ -69,6 +69,18 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main_new)
 
+        // 旋转或重建时，恢复 Fragment 实例的内部引用，防止重复创建
+        if (savedInstanceState != null) {
+            homeFragment = supportFragmentManager.findFragmentByTag("home") as? HomeFragment
+            aiModelFragment = supportFragmentManager.findFragmentByTag("ai_model") as? AiModelFragment
+            ocrModelFragment = supportFragmentManager.findFragmentByTag("ocr_model") as? OcrModelFragment
+            promptFragment = supportFragmentManager.findFragmentByTag("prompt") as? PromptManageFragment
+            knowledgeFragment = supportFragmentManager.findFragmentByTag("knowledge") as? KnowledgeCardFragment
+            planFragment = supportFragmentManager.findFragmentByTag("plan") as? PlanFragment
+            pomodoroFragment = supportFragmentManager.findFragmentByTag("pomodoro") as? PomodoroFragment
+            activeFragment = supportFragmentManager.fragments.firstOrNull { it.isAdded && !it.isHidden }
+        }
+
         mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         // 用户主动打开应用时，清除 OCR 崩溃标记（允许重试本地 OCR）
@@ -90,7 +102,7 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
         // 初始化番茄钟
         PomodoroManager.init(this)
 
-        setupBottomNav()
+        setupBottomNav(savedInstanceState)
 
         // 注册 moveToBack 广播（AppBlockerService 在 overlay 被 Activity 盖住时发送）
         val moveBackFilter = IntentFilter("com.example.aiassistant.MOVE_TO_BACK")
@@ -102,11 +114,20 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
 
         // 处理启动 Intent（通知点击 / 悬浮球跳转）
         if (intent != null) handleIntent(intent)
+        setupZenCalendar()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_nav)
+        if (bottomNav != null) {
+            outState.putInt("active_tab_id", bottomNav.selectedItemId)
+        }
     }
 
     private fun handleIntent(intent: Intent) {
@@ -136,7 +157,7 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
 
     // ── 底部导航 ──────────────────────────────────────────────────────
 
-    private fun setupBottomNav() {
+    private fun setupBottomNav(savedInstanceState: Bundle?) {
         val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_nav)
         bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -148,8 +169,15 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
                 else -> false
             }
         }
-        // 默认选中主页
-        bottomNav.selectedItemId = R.id.nav_home
+        if (savedInstanceState == null) {
+            // 首次启动，默认加载主页
+            bottomNav.selectedItemId = R.id.nav_home
+        } else {
+            // 旋转重建后，由于系统自动恢复视图状态发生在 onCreate 之后，
+            // 我们使用自己显式保存的 Tab ID 重新设值，自动触发监听器高亮并刷新相应的 Fragment 状态
+            val restoredSelectedId = savedInstanceState.getInt("active_tab_id", R.id.nav_home)
+            bottomNav.selectedItemId = restoredSelectedId
+        }
     }
 
     internal fun showFragment(fragment: Fragment) {
@@ -311,5 +339,68 @@ class MainActivity : AppCompatActivity(), HomeFragment.ServiceControlListener {
     override fun onDestroy() {
         try { unregisterReceiver(moveToBackReceiver) } catch (_: Exception) {}
         super.onDestroy()
+    }
+
+    private fun setupZenCalendar() {
+        val tvLunar = findViewById<android.widget.TextView>(R.id.tv_zen_lunar) ?: return
+        val tvSuit = findViewById<android.widget.TextView>(R.id.tv_zen_suit) ?: return
+
+        val calendar = java.util.Calendar.getInstance()
+        val month = calendar.get(java.util.Calendar.MONTH) + 1
+        val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+
+        val (lunarStr, suitStr) = when (month) {
+            1 -> {
+                if (day < 20) Pair("乙巳年 腊月", "宜 ‖ 围炉 静思")
+                else Pair("丙午年 立春", "宜 ‖ 默诵 迎新")
+            }
+            2 -> {
+                if (day < 19) Pair("丙午年 雨水", "宜 ‖ 听雨 研墨")
+                else Pair("丙午年 惊蛰", "宜 ‖ 执笔 破土")
+            }
+            3 -> {
+                if (day < 20) Pair("丙午年 春分", "宜 ‖ 观花 读书")
+                else Pair("丙午年 清明", "宜 ‖ 踏青 释怀")
+            }
+            4 -> {
+                if (day < 20) Pair("丙午年 谷雨", "宜 ‖ 烹茶 习字")
+                else Pair("丙午年 立夏", "宜 ‖ 避暑 听松")
+            }
+            5 -> {
+                if (day < 21) Pair("丙午年 小满", "宜 ‖ 读书 释怀")
+                else Pair("丙午年 芒种", "宜 ‖ 挥汗 耕耘")
+            }
+            6 -> {
+                if (day < 21) Pair("丙午年 夏至", "宜 ‖ 避暑 静坐")
+                else Pair("丙午年 小暑", "宜 ‖ 浮瓜 抚琴")
+            }
+            7 -> {
+                if (day < 22) Pair("丙午年 大暑", "宜 ‖ 沉潜 纳凉")
+                else Pair("丙午年 立秋", "宜 ‖ 迎秋 观云")
+            }
+            8 -> {
+                if (day < 23) Pair("丙午年 处暑", "宜 ‖ 临帖 听蝉")
+                else Pair("丙午年 白露", "宜 ‖ 收集 晨露")
+            }
+            9 -> {
+                if (day < 23) Pair("丙午年 秋分", "宜 ‖ 登高 望远")
+                else Pair("丙午年 寒露", "宜 ‖ 温酒 默读")
+            }
+            10 -> {
+                if (day < 23) Pair("丙午年 霜降", "宜 ‖ 赏菊 扫叶")
+                else Pair("丙午年 立冬", "宜 ‖ 藏拙 暖手")
+            }
+            11 -> {
+                if (day < 22) Pair("丙午年 小雪", "宜 ‖ 围炉 观雪")
+                else Pair("丙午年 大雪", "宜 ‖ 煮茶 阅卷")
+            }
+            else -> {
+                if (day < 21) Pair("丙午年 冬至", "宜 ‖ 吃饺 默诵")
+                else Pair("丙午年 小寒", "宜 ‖ 御寒 静思")
+            }
+        }
+
+        tvLunar.text = lunarStr
+        tvSuit.text = suitStr
     }
 }

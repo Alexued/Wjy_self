@@ -49,6 +49,9 @@ class ScreenCaptureService : Service() {
         const val EXTRA_DATA = "data"
         const val EXTRA_NEED_RESTART = "need_restart"
         const val TAG = "ScreenCapture"
+
+        @Volatile var instance: ScreenCaptureService? = null
+        @Volatile var isDictOcrMode = false
     }
 
     // ── 窗口与视图 ────────────────────────────────────────────────────
@@ -57,6 +60,8 @@ class ScreenCaptureService : Service() {
     internal var floatBallParams: WindowManager.LayoutParams? = null
     internal var areaOverlayView: View? = null
     internal var resultCardView: View? = null
+    internal val usedToolsInCurrentRequest = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
 
     // ── MediaProjection ────────────────────────────────────────────────
     @Volatile internal var mediaProjection: MediaProjection? = null
@@ -87,6 +92,7 @@ class ScreenCaptureService : Service() {
 
     // ── 屏幕状态 ──────────────────────────────────────────────────────
     private var screenStateReceiver: BroadcastReceiver? = null
+    private var orientationListener: BroadcastReceiver? = null
 
     // ── 静默搜题 ──────────────────────────────────────────────────────
     internal var smallBallView: View? = null
@@ -163,6 +169,7 @@ class ScreenCaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
         if (android.os.Build.VERSION.SDK_INT >= 29) {
@@ -191,6 +198,16 @@ class ScreenCaptureService : Service() {
         OpenAIApiService.warmUpConnection(AppPreferences.getApiBaseUrl(this).ifBlank { AppPreferences.DEFAULT_BASE_URL })
 
         registerPrefListener()
+
+        // 监听屏幕旋转
+        orientationListener = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_CONFIGURATION_CHANGED) {
+                    mainHandler.post { onScreenRotation() }
+                }
+            }
+        }
+        registerReceiver(orientationListener, IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED))
 
         screenStateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -294,10 +311,15 @@ class ScreenCaptureService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        instance = null
         mainHandler.removeCallbacksAndMessages(null)
         screenStateReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) {}
             screenStateReceiver = null
+        }
+        orientationListener?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
+            orientationListener = null
         }
         dismissDictionaryOverlay()
         dismissBallMenu()
@@ -485,6 +507,49 @@ class ScreenCaptureService : Service() {
         } else {
             Log.d(TAG, "MediaProjection still valid after unlock")
             updateNotification()
+        }
+    }
+
+    private fun onScreenRotation() {
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        val newWidth = metrics.widthPixels
+        val newHeight = metrics.heightPixels
+
+        // 屏幕尺寸变化时重新调整悬浮球位置
+        if (newWidth != screenWidth || newHeight != screenHeight) {
+            Log.d(TAG, "Screen rotation detected: ${screenWidth}x${screenHeight} -> ${newWidth}x${newHeight}")
+            screenWidth = newWidth
+            screenHeight = newHeight
+            screenDensity = metrics.densityDpi
+            displayDensity = metrics.density
+
+            // 重新调整悬浮球位置
+            adjustFloatBallPosition()
+            updateSmallBallPosition()
+        }
+    }
+
+    private fun adjustFloatBallPosition() {
+        val view = floatBallView ?: return
+        val params = floatBallParams ?: return
+        val ballSize = params.width
+
+        // 确保悬浮球在屏幕范围内
+        if (params.x + ballSize > screenWidth) {
+            params.x = screenWidth - ballSize - dpToPx(16)
+        }
+        if (params.y + ballSize > screenHeight) {
+            params.y = screenHeight - ballSize - dpToPx(16)
+        }
+        if (params.x < 0) params.x = dpToPx(16)
+        if (params.y < 0) params.y = dpToPx(16)
+
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            Log.e(TAG, "adjustFloatBallPosition failed", e)
         }
     }
 
@@ -767,6 +832,15 @@ class ScreenCaptureService : Service() {
         modelIndex: Int = 0,
         candidates: List<AiModelConfig> = emptyList()
     ) {
+        if (isDictOcrMode) {
+            isDictOcrMode = false
+            mainHandler.post {
+                hideBallProgress()
+                performDictOcrSearch(ocrText)
+            }
+            return
+        }
+
         lastOcrText = ocrText
         val questionType = AppPreferences.getCurrentQuestionType(this)
         var prompt = AppPreferences.getPromptForType(this, questionType)
@@ -795,6 +869,7 @@ class ScreenCaptureService : Service() {
 
         if (modelIndex == 0) {
             primaryModelError = null
+            usedToolsInCurrentRequest.clear()
         }
 
         if (currentModel == null) {
@@ -840,6 +915,13 @@ class ScreenCaptureService : Service() {
             }
         }
 
+        val useTools = AppPreferences.isToolCallingEnabled(this) &&
+                com.example.aiassistant.skills.ToolRegistry.hasTools()
+
+        if (useTools) {
+            prompt = getUniversalAgentPrompt()
+        }
+
         // 命中题库：在原始prompt前注入题库数据，去掉OCR校对部分
         if (bankMatch != null) {
             val bankContext = buildString {
@@ -868,19 +950,23 @@ class ScreenCaptureService : Service() {
                 appendLine("2. 请在JSON中额外输出 keywords 数组，列出题目中的3-8个关键词/关键语句（用于在题目中标红高亮）。")
                 appendLine()
             }
-            // 去掉原始prompt中的OCR校对部分（题库数据已经是干净的）
-            val ocrStart = prompt.indexOf("⭐")
-            val taskStart = prompt.indexOf("任务要求")
-            val cleanPrompt = if (ocrStart > 0 && taskStart > ocrStart) {
-                // 去掉 intro 中关于 OCR 的描述 + 整个 OCR 校对段落
-                val intro = prompt.substring(0, ocrStart)
-                    .replace("用户提供的题目文字来自OCR识别，可能存在错别字、漏字、多字或形近字误识别等错误。你的首要任务是：", "")
-                    .trim()
-                intro + "\n\n" + prompt.substring(taskStart)
+            if (useTools) {
+                prompt = bankContext + prompt
             } else {
-                prompt
+                // 去掉原始prompt中的OCR校对部分（题库数据已经是干净的）
+                val ocrStart = prompt.indexOf("⭐")
+                val taskStart = prompt.indexOf("任务要求")
+                val cleanPrompt = if (ocrStart > 0 && taskStart > ocrStart) {
+                    // 去掉 intro 中关于 OCR 的描述 + 整个 OCR 校对段落
+                    val intro = prompt.substring(0, ocrStart)
+                        .replace("用户提供的题目文字来自OCR识别，可能存在错别字、漏字、多字或形近字误识别等错误。你的首要任务是：", "")
+                        .trim()
+                    intro + "\n\n" + prompt.substring(taskStart)
+                } else {
+                    prompt
+                }
+                prompt = bankContext + cleanPrompt
             }
-            prompt = bankContext + cleanPrompt
         }
         val baseUrl = currentModel.baseUrl
         val apiKey = currentModel.apiKey
@@ -898,18 +984,8 @@ class ScreenCaptureService : Service() {
         val modelLabel = if (modelIndex > 0) "【备用】${currentModel.name}" else currentModel.name
         showLoading("⚡ AI 正在深度解析中...\n当前模型: $modelLabel")
 
-        OpenAIApiService.analyzeText(
-            ocrText = ocrText,
-            baseUrl = baseUrl,
-            apiKey = apiKey,
-            model = model,
-            prompt = prompt,
-            thinking = thinking,
-            userMessage = userMsg,
-            apiType = apiType,
-            thinkingBudget = thinkingBudget,
-            onComplete = { fullText ->
-                if (currentRequestId != requestId) return@analyzeText
+        val onCompleteCallback = { fullText: String ->
+            if (currentRequestId == requestId) {
                 val totalTime = System.currentTimeMillis() - startTime
                 Log.d(TAG, "总耗时: ${totalTime}ms (OCR: ${ocrTime}ms, AI: ${totalTime - ocrTime}ms)")
                 hideBallProgress()
@@ -923,10 +999,11 @@ class ScreenCaptureService : Service() {
                 } else {
                     performJsonValidationAndRepair(fullText, requestId, startTime, 0, isVision = false)
                 }
-            },
-            onError = { error ->
-                if (currentRequestId != requestId) return@analyzeText
-                
+            }
+        }
+
+        val onErrorCallback = { error: String ->
+            if (currentRequestId == requestId) {
                 if (modelIndex == 0) {
                     primaryModelError = "主模型「${currentModel.name}」请求失败：$error"
                 }
@@ -961,7 +1038,50 @@ class ScreenCaptureService : Service() {
                     }
                 }
             }
-        )
+        }
+
+        if (useTools) {
+            val toolsArray = com.example.aiassistant.skills.ToolRegistry.toOpenAiToolsArrayForType(questionType)
+            OpenAIApiService.analyzeWithTools(
+                context = this@ScreenCaptureService,
+                ocrText = ocrText,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                prompt = prompt,
+                thinking = thinking,
+                userMessage = userMsg,
+                apiType = apiType,
+                thinkingBudget = thinkingBudget,
+                tools = toolsArray,
+                onToolCall = { toolName ->
+                    val displayName = when (toolName) {
+                        "get_solving_skill" -> "解题技巧"
+                        "get_typical_special_rule" -> "专项考点"
+                        "query_question_bank" -> "本地题库"
+                        else -> toolName
+                    }
+                    usedToolsInCurrentRequest.add(displayName)
+                    showLoading("AI 正在使用工具：$displayName...")
+                },
+                onComplete = onCompleteCallback,
+                onError = onErrorCallback
+            )
+        } else {
+            OpenAIApiService.analyzeText(
+                ocrText = ocrText,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                prompt = prompt,
+                thinking = thinking,
+                userMessage = userMsg,
+                apiType = apiType,
+                thinkingBudget = thinkingBudget,
+                onComplete = onCompleteCallback,
+                onError = onErrorCallback
+            )
+        }
     }
 
     private fun retryAiAnalysis(requestId: Long, startTime: Long) {
@@ -1062,6 +1182,7 @@ class ScreenCaptureService : Service() {
 
         if (modelIndex == 0) {
             primaryModelError = null
+            usedToolsInCurrentRequest.clear()
         }
 
         if (currentModel == null) {
@@ -1088,20 +1209,54 @@ class ScreenCaptureService : Service() {
         val thinking = currentModel.thinkingDefault
         val thinkingBudget = currentModel.thinkingBudget
 
+        val useTools = AppPreferences.isToolCallingEnabled(this) &&
+                com.example.aiassistant.skills.ToolRegistry.hasTools()
+
+        val promptForVision = if (useTools) {
+            getUniversalAgentPrompt()
+                .replace("用户提供的题目文字来自OCR识别，可能存在错别字或格式混乱", "用户提供了题目截图，可能包含图形和文字")
+                .replace("分析用户提供的题目文本，提取核心题干", "分析用户提供的题目图片，提取核心题干和图形要素")
+        } else {
+            visionPrompt
+        }
+
+        val finalVisionPrompt = if (useTools && bankMatch != null) {
+            val bankContext = buildString {
+                appendLine("=== 题库已收录此题，以下为题库数据（正确答案已确定） ===")
+                appendLine()
+                appendLine("【题库题目】")
+                appendLine(bankMatch.stem)
+                appendLine()
+                if (bankMatch.options.isNotEmpty()) {
+                    appendLine("【题库选项】")
+                    for ((i, opt) in bankMatch.options.withIndex()) {
+                        appendLine("${'A' + i}. ${opt.text}")
+                    }
+                    appendLine()
+                }
+                appendLine("【题库正确答案】${bankMatch.answer}")
+                appendLine()
+                if (bankMatch.analysis.isNotBlank()) {
+                    appendLine("【题库参考解析】")
+                    appendLine(bankMatch.analysis)
+                    appendLine()
+                }
+                appendLine("=== 以上为题库数据，请结合输入的图片进行深度分析 ===")
+                appendLine("特别注意：")
+                appendLine("1. 正确答案已确定为 ${bankMatch.answer}，请围绕该答案展开分析，对每个选项逐一说明选或不选的理由。")
+                appendLine("2. 请在JSON中额外输出 keywords 数组，列出题目中的3-8个关键词/关键语句。")
+                appendLine()
+            }
+            bankContext + promptForVision
+        } else {
+            promptForVision
+        }
+
         val modelLabel = if (modelIndex > 0) "【备用】${currentModel.name}" else currentModel.name
         showLoading("🎨 视觉模型分析中...\n当前模型: $modelLabel")
 
-        OpenAIApiService.analyzeWithImage(
-            imageBase64 = imageBase64,
-            systemPrompt = visionPrompt,
-            baseUrl = baseUrl,
-            apiKey = apiKey,
-            model = model,
-            thinking = thinking,
-            apiType = apiType,
-            thinkingBudget = thinkingBudget,
-            onComplete = { fullText ->
-                if (currentRequestId != requestId) return@analyzeWithImage
+        val onCompleteCallback = { fullText: String ->
+            if (currentRequestId == requestId) {
                 val totalTime = System.currentTimeMillis() - startTime
                 Log.d(TAG, "视觉分析总耗时: ${totalTime}ms")
                 hideBallProgress()
@@ -1115,10 +1270,11 @@ class ScreenCaptureService : Service() {
                 } else {
                     performJsonValidationAndRepair(fullText, requestId, startTime, 0, isVision = true)
                 }
-            },
-            onError = { error ->
-                if (currentRequestId != requestId) return@analyzeWithImage
-                
+            }
+        }
+
+        val onErrorCallback = { error: String ->
+            if (currentRequestId == requestId) {
                 if (modelIndex == 0) {
                     primaryModelError = "主模型「${currentModel.name}」请求失败：$error"
                 }
@@ -1153,7 +1309,50 @@ class ScreenCaptureService : Service() {
                     }
                 }
             }
-        )
+        }
+
+        if (useTools) {
+            val toolsArray = com.example.aiassistant.skills.ToolRegistry.toOpenAiToolsArrayForType(questionType)
+            OpenAIApiService.analyzeWithTools(
+                context = this@ScreenCaptureService,
+                ocrText = lastOcrText ?: "",
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                prompt = finalVisionPrompt,
+                thinking = thinking,
+                userMessage = if (bankMatch != null) "请基于系统提示中的题库数据与输入的图片，按照要求进行详细分析，输出标准JSON格式。" else null,
+                apiType = apiType,
+                thinkingBudget = thinkingBudget,
+                tools = toolsArray,
+                imageBase64 = imageBase64,  // 多模态传图参数
+                onToolCall = { toolName ->
+                    val displayName = when (toolName) {
+                        "get_solving_skill" -> "解题技巧"
+                        "get_typical_special_rule" -> "专项考点"
+                        "query_question_bank" -> "本地题库"
+                        else -> toolName
+                    }
+                    usedToolsInCurrentRequest.add(displayName)
+                    showLoading("AI 正在使用工具：$displayName...")
+                },
+                onComplete = onCompleteCallback,
+                onError = onErrorCallback
+            )
+        } else {
+            OpenAIApiService.analyzeWithImage(
+                imageBase64 = imageBase64,
+                systemPrompt = finalVisionPrompt,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                thinking = thinking,
+                apiType = apiType,
+                thinkingBudget = thinkingBudget,
+                onComplete = onCompleteCallback,
+                onError = onErrorCallback
+            )
+        }
     }
 
     private fun retryVisionAnalysis(requestId: Long, startTime: Long) {
@@ -1320,6 +1519,14 @@ class ScreenCaptureService : Service() {
         val correctAns = json.optString("correct_answer", "").trim()
         if (correctAns.isEmpty()) return "业务一致性校验失败: correct_answer 字段值为空"
 
+        // 判断是否为选非题（选错误/不正确/不属于/对应错误的）
+        val questionText = json.optString("question", "")
+        val askType = json.optString("ask_type", "")
+        val isSelectWrong = questionText.contains("不正确") || questionText.contains("错误的是") ||
+                questionText.contains("不属于") || questionText.contains("对应错误") ||
+                questionText.contains("不恰当") || questionText.contains("不恰当的是") ||
+                askType.contains("不属于")
+
         val opts = json.optJSONArray("options_analysis")
         if (opts != null && opts.length() > 0) {
             var foundAnswerInOpts = false
@@ -1329,18 +1536,36 @@ class ScreenCaptureService : Service() {
                 val correct = o.optBoolean("correct", false) || o.optBoolean("matches", false)
                 if (correct) trueCount++
                 val optName = o.optString("option", "").trim()
-                if (optName.startsWith(correctAns, ignoreCase = true) || optName.contains(correctAns, ignoreCase = true)) {
+                // 只匹配选项标识符（A、B、C、D），避免匹配到选项文本中的字母
+                // 支持格式："A"、"A."、"A. ..."、"A、..."
+                val optPrefix = optName.takeWhile { it.isLetter() || it == '.' || it == '、' }.trimEnd('.', '、').trim()
+                val isMatch = optPrefix.equals(correctAns, ignoreCase = true) ||
+                        optName.startsWith("$correctAns.", ignoreCase = true) ||
+                        optName.startsWith("$correctAns、", ignoreCase = true) ||
+                        optName.startsWith("$correctAns ", ignoreCase = true) ||
+                        (optName.length <= 3 && optName.equals(correctAns, ignoreCase = true))
+                if (isMatch) {
                     foundAnswerInOpts = true
-                    if (!correct) {
+                    // 选非题：正确答案对应的选项应该是 correct=false（因为它本身是错误的）
+                    // 选是题：正确答案对应的选项应该是 correct=true
+                    if (isSelectWrong && correct) {
+                        return "业务一致性校验失败: 选非题 correct_answer 为 $correctAns，但该选项被标记为正确(correct=true)"
+                    }
+                    if (!isSelectWrong && !correct) {
                         return "业务一致性校验失败: correct_answer 为 $correctAns，但在 options_analysis 中该选项被标记为错误(correct=false)"
                     }
                 }
             }
-            if (trueCount == 0) {
+            if (trueCount == 0 && !isSelectWrong) {
                 return "业务一致性校验失败: options_analysis 中没有一个选项被标记为正确(correct/matches=true)"
             }
-            if (trueCount > 1) {
+            // 选非题允许多个选项正确（只有一个是错误的）
+            if (trueCount > 1 && !isSelectWrong) {
                 return "业务一致性校验失败: options_analysis 中有多个选项被标为正确，单选题应只有一个正确选项"
+            }
+            // 选非题应该只有一个选项是错误的（correct=false）
+            if (isSelectWrong && trueCount != opts.length() - 1) {
+                return "业务一致性校验失败: 选非题应该只有一个选项的对应是错误的"
             }
             if (!foundAnswerInOpts) {
                 return "业务一致性校验失败: options_analysis 中未能找到与 correct_answer='$correctAns' 匹配的选项前缀"
@@ -1454,6 +1679,7 @@ class ScreenCaptureService : Service() {
                 val baseUrl = activeModel?.baseUrl ?: AppPreferences.getApiBaseUrl(this)
                 val apiKey = activeModel?.apiKey ?: AppPreferences.getApiKey(this)
                 val model = activeModel?.model ?: AppPreferences.getApiModel(this)
+                val apiType = activeModel?.apiType ?: "openai"
 
                 OpenAIApiService.analyzeText(
                     ocrText = "",
@@ -1463,6 +1689,7 @@ class ScreenCaptureService : Service() {
                     prompt = repairPrompt,
                     thinking = false,
                     userMessage = userMsg,
+                    apiType = apiType,
                     onComplete = { repairedText ->
                         if (currentRequestId != requestId) return@analyzeText
                         Log.d(TAG, "AI 修复响应成功，重新校验...")
@@ -1487,5 +1714,269 @@ class ScreenCaptureService : Service() {
                 }
             }
         }
+    }
+
+    private fun getUniversalAgentPrompt(): String {
+        return """
+            你是一个顶级公务员行测考试解题专家（智能助教）。
+            你的任务是对用户给出的行测题目（可能来自OCR识别，包含部分错别字或格式混乱）进行深度智能分析，并输出完美契合题型的结构化 JSON 解析。
+
+            【⚠️核心工作流指令（非常重要）】
+            为了保证解题的权威性和极致准确性，你被赋予了以下本地工具库进行「三层渐进式披露」加载：
+            1. `get_solving_skill(question_type, sub_type)`: 获取某大题型下细分子题型的核心解题方法、选择原则与避坑高频陷阱（第二层：按需加载方法论）。
+            2. `get_typical_special_rule(term)`: 获取各行测模块在高频专项考点、被定义概念、典型常识误区或公式上的标准解析要素与极限排除法则（第三层：按需加载特定考点深度细则）。
+
+            【📢前置环节说明】：
+            系统内置了题库前置检索环节。如果题目已被收录，系统会在本 Prompt 的头部以 `=== 题库已收录此题 ===` 块的形式自动注入经过人工校核 of 官方标准题干、选项、正确答案及官方解析。
+            如果存在前置题库数据，代表正确答案已确凿无疑，你必须以该标准题库数据为基准展开分析，且保证最终输出的 `correct_answer` 与题库给出的正确答案完全一致。
+
+            【执行步骤】：
+            第一步：分析用户提供的题目文本，提取核心题干，识别它属于行测五大模块中的哪个【大题型】。
+            第二步：【调用工具 - 第二层】—— 你必须首先调用 `get_solving_skill` 获取对应细分【小题型】的专属方法。
+            第三步：【调用工具 - 第三层】—— 若遇到以下高频特征考点，你必须紧接着调用 `get_typical_special_rule(term)` 调取专属避坑细则与公式手册（严防凭感觉做题）：
+                - 如果当前是「定义判断」题，且题干的被定义词属于高频典型词（如“体验式采访”、“隐性饥饿”、“无感审批”、“最大最小准则”等），调用 `get_typical_special_rule(term = "被定义词")`；
+                - 如果当前是「类比推理」题，且涉及“鳄鱼/鲸鱼等生物常识判断”（非种属误判）、“9大命名方式”、“物理与化学变化变化判定”或“并列之矛盾与反对区别”，调用 `get_typical_special_rule(term = "非种属误判" 或 "9大命名方式" 或 "物理变化与化学变化" 或 "并列之矛盾与反对")`；
+                - 如果当前是「逻辑判断」题，且考查“真假推理矛盾关系”或“翻译推理公式连锁推理”，调用 `get_typical_special_rule(term = "真假矛盾公式表" 或 "翻译推理公式秘籍")`；
+                - 如果当前是「逻辑填空」题，且考查“公文时政搭配特点”或“双刃剑/紧箍咒等比喻意境”，调用 `get_typical_special_rule(term = "黄金公文热词搭配" 或 "常考比喻与本体隐喻")`。
+            第四步：在工具返回你的专属技巧后，仔细阅读，将这些策略严密运用到题目解析中，对题目和每个选项进行极其专业的剖析。
+            第五步：根据题目的最终判定题型，输出对应的结构化 JSON，严禁掺杂 Markdown 代码块包裹以外的任何闲聊文字。
+
+            【输出 JSON 格式规范】
+            请根据你识别出的题目类别，严格输出以下 7 种 JSON 结构之一：
+
+            1. [片段阅读] 格式：
+            {
+              "question_type": "片段阅读",
+              "passage_type": "中心理解" | "细节判断" | "下文推断" | "标题拟定",
+              "structure_type": ["转折结构", "因果结构", "递进结构", "并列结构", "总分/分总结构"],
+              "question": "清洗后的干净题干",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "选项详细理由，指出如何对应原文的对策句或主题词"},
+                {"option": "B", "correct": false, "reason": "选项详细错误原因，标明是属于「细节非主旨/无中生有/偷换概念/偏离核心」中的哪种"}
+              ],
+              "logical_labels": [
+                {"label": "关联词/逻辑词", "reason": "该逻辑词在文段行文脉络中的具体承接/转折作用说明"}
+              ],
+              "analysis": "一句话核心秒杀解析",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            2. [逻辑填空] 格式（用 " ________ " 作为空格占位符）：
+            {
+              "question_type": "逻辑填空",
+              "skill_tags": ["词义辨析", "搭配用法", "成语填空"],
+              "question": "含有 ________ 的完整题干",
+              "core_meaning": "文段的核心主旨意思",
+              "breakthrough": "核心破题点（如解释性关系或反对关系线索）",
+              "correct_answer": "A",
+              "blanks_analysis": [
+                {
+                  "position": "空格1",
+                  "context_hint": "该空的语境线索或修饰关系",
+                  "answer": "正确填入的词",
+                  "summary": "该空的选择小结",
+                  "candidates": [
+                    {"word": "词语A", "correct": true, "dimension": "词义轻重/搭配对象", "reason": "正确理由"},
+                    {"word": "词语B", "correct": false, "dimension": "词义轻重/褒贬色彩", "reason": "排除理由"}
+                  ]
+                }
+              ],
+              "verification": "带回验证句意是否顺畅",
+              "accumulation": "本题相关的成语或核心实词积累",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            3. [语句表达] 格式：
+            {
+              "question_type": "语句表达",
+              "question_subtype": "语句填入题" | "语句排序题",
+              "question": "干净题干",
+              "correct_answer": "A",
+              "structure_analysis": "文段整体行文脉络与逻辑层级分析",
+              "key_clues": ["排序或填入的绝对捆绑线索1", "绝对捆绑线索2"],
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "正确理由"},
+                {"option": "B", "correct": false, "reason": "排除理由"}
+              ],
+              "pitfall": "容易被语感误导的经典易错点",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            4. [定义判断] 格式：
+            {
+              "question_type": "定义判断",
+              "ask_type": "属于" | "不属于",
+              "definition_text": "定义原文",
+              "key_elements": ["核心要素1(如主体)", "核心要素2(如手段)", "核心要素3(如结果)"],
+              "question": "题干设问和选项前情",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "完全契合所有关键定义要素的详细剖析"},
+                {"option": "B", "correct": false, "reason": "缺少哪项核心要素的详细说明"}
+              ],
+              "analysis": "一句话判定精要",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            5. [类比推理] 格式：
+            {
+              "question_type": "类比推理",
+              "word_pair": "题干词组(如：微风：狂风)",
+              "relationship_type": "核心关系(如：语义关系-程度递进)",
+              "relationship_analysis": "题干两个词的深层逻辑关系分析",
+              "sentence": "题干词组造句验证",
+              "technique": {
+                "level1": "一级逻辑关系",
+                "level2": "二级辨析关系",
+                "key_point": "区分干扰项的核判断点"
+              },
+              "options_table": [
+                {"option": "A. 词1：词2", "relationship": "选项关系", "match": true, "reason": "比对说明"},
+                {"option": "B. 词1：词2", "relationship": "选项关系", "match": false, "reason": "比对说明"}
+              ],
+              "secondary_analysis": "详细的一二级二级辨析对比过程",
+              "correct_answer": "A",
+              "pitfall": "经典易错方向陷阱",
+              "summary": "解此类题的核心总结",
+              "analysis": "秒杀解析",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            6. [逻辑判断] 格式：
+            {
+              "question_type": "逻辑判断",
+              "reasoning_type": "论证削弱" | "论证加强" | "翻译推理" | "真假推理" | "分析推理",
+              "argument_structure": "论点与论据的推出式结构梳理",
+              "diagram_type": "逻辑图描述(可选)",
+              "logical_chain": [
+                {"step": 1, "premise": "前提/论据", "deduction": "具体推导/强化/削弱逻辑"}
+              ],
+              "question": "干净题干",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "如何起到最强加强/削弱/翻译契合作用"},
+                {"option": "B", "correct": false, "reason": "无关项/加强程度过弱/诉诸无知等排除原因"}
+              ],
+              "analysis": "核心推导小结",
+              "keywords": ["关键词1", "keywords2"]
+            }
+
+            7. [图形推理] 格式：
+            {
+              "question_type": "图形推理",
+              "pattern_type": "位置变化" | "样式变化" | "数量规律" | "属性规律" | "空间重构",
+              "rule_description": "图形整体核心变化规律精要描述",
+              "visual_analysis": "视觉细节剖析",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "规律完全契合"},
+                {"option": "B", "correct": false, "reason": "不符合什么移动步长或翻转规律"}
+              ],
+              "analysis": "秒杀解析",
+              "keywords": ["关键词1", "关键词2"]
+            }
+        """.trimIndent()
+    }
+
+    private fun performDictOcrSearch(ocrText: String) {
+        val cleanedText = ocrText.lines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("\n")
+
+        // 1. 本地题库库检索原题
+        val bankMatch = com.example.aiassistant.questionbank.QuestionBankManager.search(cleanedText)
+        val wordsToSearch = mutableListOf<String>()
+
+        if (bankMatch != null) {
+            Log.d(TAG, "词库识图模式 - 题库命中！ID=${bankMatch.id}")
+            wordsToSearch.addAll(extractCleanWordsFromOptions(bankMatch.options))
+        } else {
+            Log.d(TAG, "词库识图模式 - 题库未命中，走滑动窗口文本词汇扫描")
+            wordsToSearch.addAll(extractCandidatesFromText(cleanedText))
+        }
+
+        // 2. 内存词库匹配
+        val finalMatchList = mutableListOf<com.example.aiassistant.dictionary.DictItem>()
+        for (word in wordsToSearch) {
+            val dictRes = com.example.aiassistant.dictionary.DictionaryManager.search(word)
+            if (!dictRes.isEmpty) {
+                // 优先挑选精确完全相等词条
+                val matchedItem = dictRes.items.firstOrNull { item ->
+                    val itemWord = when (item) {
+                        is com.example.aiassistant.dictionary.DictItem.IdiomItem -> item.data.word
+                        is com.example.aiassistant.dictionary.DictItem.WordItem -> item.data.word
+                        is com.example.aiassistant.dictionary.DictItem.CiItem -> item.data.ci
+                        is com.example.aiassistant.dictionary.DictItem.XiehouyuItem -> item.data.riddle
+                    }
+                    itemWord == word
+                }
+                if (matchedItem != null) {
+                    finalMatchList.add(matchedItem)
+                }
+            }
+        }
+
+        // 3. 去重
+        val distinctList = finalMatchList.distinctBy { item ->
+            when (item) {
+                is com.example.aiassistant.dictionary.DictItem.IdiomItem -> item.data.word
+                is com.example.aiassistant.dictionary.DictItem.WordItem -> item.data.word
+                is com.example.aiassistant.dictionary.DictItem.CiItem -> item.data.ci
+                is com.example.aiassistant.dictionary.DictItem.XiehouyuItem -> item.data.riddle
+            }
+        }
+
+        Log.d(TAG, "词库匹配完成，命中词汇量=${distinctList.size}")
+
+        // 4. 显示浮空卡片结果
+        mainHandler.post {
+            isCapturing = false
+            cancelCaptureTimeout()
+            showDictOcrResultCard(distinctList, cleanedText)
+        }
+    }
+
+    private fun extractCleanWordsFromOptions(options: List<com.example.aiassistant.questionbank.QuestionOption>): List<String> {
+        val list = mutableListOf<String>()
+        for (opt in options) {
+            val rawOpt = opt.text.trim()
+            if (rawOpt.isNotBlank()) {
+                // 正则过滤 [A-D] 后可能伴随的英文句点、中文顿号、空格等干扰
+                val cleanOpt = rawOpt.replaceFirst(Regex("^[A-D][\\s\\.\\s、]*"), "").trim()
+                if (cleanOpt.isNotBlank()) {
+                    // 支持切分多个词汇
+                    val parts = cleanOpt.split(Regex("[\\s\\p{Punct}、\\u3001]+"))
+                    for (p in parts) {
+                        val trimP = p.trim()
+                        if (trimP.length in 2..10) {
+                            list.add(trimP)
+                        }
+                    }
+                }
+            }
+        }
+        return list
+    }
+
+    private fun extractCandidatesFromText(text: String): List<String> {
+        val words = mutableListOf<String>()
+        val blocks = text.split(Regex("[^\\u4e00-\\u9fa5]+"))
+        for (block in blocks) {
+            if (block.isBlank()) continue
+            if (block.length in 2..4) {
+                words.add(block)
+            } else if (block.length > 4) {
+                // 用滑动窗口切片出所有可能成语或词组片段
+                for (len in 4 downTo 2) {
+                    for (i in 0..block.length - len) {
+                        val sub = block.substring(i, i + len)
+                        words.add(sub)
+                    }
+                }
+            }
+        }
+        return words.distinct().take(30)
     }
 }

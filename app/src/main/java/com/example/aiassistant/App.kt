@@ -23,5 +23,12 @@ class App : Application() {
         } catch (e: Exception) {
             android.util.Log.e("App", "Failed to set OpenMP env vars: ${e.message}")
         }
+
+        // 初始化 Skills 工具注册
+        try {
+            com.example.aiassistant.skills.BuiltInTools.registerAll()
+        } catch (e: Exception) {
+            android.util.Log.e("App", "Failed to register BuiltInTools: ${e.message}")
+        }
     }
 }

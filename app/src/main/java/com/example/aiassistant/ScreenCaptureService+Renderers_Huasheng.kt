@@ -51,7 +51,48 @@ internal fun ScreenCaptureService.renderHuasheng(card: View, json: JSONObject, t
         QuestionType.LEI_BI_TUI_LI -> renderHuashengLeiBiTuiLi(card, json)
         QuestionType.LUO_JI_PAN_DUAN -> renderHuashengLuoJiPanDuan(card, json)
     }
+    renderUsedToolsTags(card, resources.displayMetrics.density)
 }
+
+internal fun ScreenCaptureService.renderUsedToolsTags(card: View, d: Float) {
+    val layoutTags = card.findViewById<LinearLayout>(R.id.layout_tags) ?: return
+    val dp4 = (4 * d).toInt()
+    val dp6 = (6 * d).toInt()
+    val dp8 = (8 * d).toInt()
+
+    if (usedToolsInCurrentRequest.isNotEmpty()) {
+        layoutTags.visibility = View.VISIBLE
+        val toolsCopy = synchronized(usedToolsInCurrentRequest) { usedToolsInCurrentRequest.toList() }
+        for (tool in toolsCopy) {
+            var exists = false
+            for (i in 0 until layoutTags.childCount) {
+                val child = layoutTags.getChildAt(i) as? TextView
+                if (child?.text?.toString() == "已用: $tool") {
+                    exists = true
+                    break
+                }
+            }
+            if (exists) continue
+
+            val toolTag = TextView(this).apply {
+                text = "已用: $tool"
+                setTextColor(0xFF5C8271.toInt()) // Zen theme primary text color
+                textSize = 10.5f
+                setTypeface(null, Typeface.BOLD)
+                setBackgroundResource(R.drawable.bg_tag_blue) // Zen warm sand sandstone background
+                setPadding(dp8, dp4, dp8, dp4)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(dp6, 0, 0, 0)
+                }
+            }
+            layoutTags.addView(toolTag)
+        }
+    }
+}
+
 
 // ── 1. 片段阅读（现有逻辑移植）───────────────────────────────────────────
 
@@ -401,7 +442,7 @@ internal fun ScreenCaptureService.renderHuashengTuXingTuiLi(card: View, json: JS
 
         if (ruleDesc.isNotEmpty()) {
             container?.addView(TextView(this).apply {
-                text = "📐 规律：$ruleDesc"; textSize = 13f; setTextColor(0xFF374151.toInt())
+                text = "规律：$ruleDesc"; textSize = 13f; setTextColor(0xFF374151.toInt())
                 setLineSpacing(0f, 1.4f)
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, dp8, 0, 0) }
                 setBackgroundResource(R.drawable.bg_question_box); setPadding(dp10, dp8, dp10, dp8)
@@ -1313,7 +1354,7 @@ private fun ScreenCaptureService.renderArrowGraph(card: View, json: JSONObject, 
     val nodesArray = json.optJSONArray("nodes") ?: return
     val edgesArray = json.optJSONArray("edges") ?: return
 
-    addDynamicSection(card, "🎨 逻辑推理关系图", d)
+    addDynamicSection(card, "逻辑推理关系图", d)
     val container = getDynamicContainer(card) ?: return
 
     // 外层精致卡片容器 (高级抹茶绿渐变与细圆角边框)
@@ -1422,7 +1463,7 @@ private fun ScreenCaptureService.renderEulerDiagram(card: View, json: JSONObject
     val circlesArray = json.optJSONArray("circles") ?: return
     val relationsArray = json.optJSONArray("relations") ?: return
 
-    addDynamicSection(card, "🎨 概念集合关系图 (欧拉图)", d)
+    addDynamicSection(card, "概念集合关系图 (欧拉图)", d)
     val container = getDynamicContainer(card) ?: return
 
     // 整个图大容器卡片
@@ -1467,7 +1508,7 @@ private fun ScreenCaptureService.renderEulerDiagram(card: View, json: JSONObject
 
     // 添加下方的关系逻辑说明
     if (rList.isNotEmpty()) {
-        val relText = StringBuilder("💡 集合关系解读：\n")
+        val relText = StringBuilder("集合关系解读：\n")
         rList.forEachIndexed { idx, rel ->
             relText.append("• ").append(rel.label)
             if (idx < rList.size - 1) relText.append("\n")
@@ -1499,7 +1540,7 @@ private fun ScreenCaptureService.renderMatrixTable(card: View, json: JSONObject,
     val headersArray = json.optJSONArray("headers") ?: return
     val rowsArray = json.optJSONArray("rows") ?: return
 
-    addDynamicSection(card, "📊 多维信息匹配表 (矩阵表格)", d)
+    addDynamicSection(card, "多维信息匹配表 (矩阵表格)", d)
     val container = getDynamicContainer(card) ?: return
 
     // 卡片外部容器

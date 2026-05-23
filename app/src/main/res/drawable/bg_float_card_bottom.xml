@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 外层阴影边框 -->
+    <!-- 外层极精致圆角描边 (禅意沙色) -->
     <item>
         <shape>
-            <solid android:color="#E0E4EA" />
+            <solid android:color="@color/border_light" />
             <corners android:topLeftRadius="18dp" android:topRightRadius="18dp" />
         </shape>
     </item>
-    <!-- 内层白色主体 -->
-    <item android:left="0.5dp" android:top="0.5dp" android:right="0.5dp" android:bottom="0dp">
+    <!-- 内层温暖沙底背景主体 -->
+    <item android:left="1dp" android:top="1dp" android:right="1dp" android:bottom="0dp">
         <shape>
-            <solid android:color="#FFFFFF" />
+            <solid android:color="@color/card_bg" />
             <corners android:topLeftRadius="18dp" android:topRightRadius="18dp" />
         </shape>
     </item>

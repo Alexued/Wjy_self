@@ -567,4 +567,237 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
                 || ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
                 || ub == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
     }
+
+    /** 导出所有的题库数据（含分类、材料、题目）为 JSON */
+    fun exportQuestionsJson(): String {
+        return try {
+            val root = org.json.JSONObject()
+            root.put("backup_type", "question_bank")
+            root.put("version", 1)
+            
+            // 1. 导出 modules
+            val modulesArr = org.json.JSONArray()
+            readableDatabase.rawQuery("SELECT id, name, parent_id, sort_order FROM $T_MODULES", null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    modulesArr.put(org.json.JSONObject().apply {
+                        put("id", cursor.getString(0))
+                        put("name", cursor.getString(1))
+                        put("parent_id", cursor.getString(2) ?: "")
+                        put("sort_order", cursor.getInt(3))
+                    })
+                }
+            }
+            root.put("modules", modulesArr)
+
+            // 2. 导出 materials
+            val materialsArr = org.json.JSONArray()
+            readableDatabase.rawQuery("SELECT id, content FROM $T_MATERIALS", null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    materialsArr.put(org.json.JSONObject().apply {
+                        put("id", cursor.getString(0))
+                        put("content", cursor.getString(1))
+                    })
+                }
+            }
+            root.put("materials", materialsArr)
+
+            // 3. 导出 questions
+            val questionsArr = org.json.JSONArray()
+            readableDatabase.rawQuery("SELECT id, module_id, stem, stem_html, material_id, options, answer, analysis, knowledge_point, source, rate, difficulty, title_images FROM $T_QUESTIONS", null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    questionsArr.put(org.json.JSONObject().apply {
+                        put("id", cursor.getString(0))
+                        put("module_id", cursor.getString(1))
+                        put("stem", cursor.getString(2))
+                        put("stem_html", cursor.getString(3))
+                        put("material_id", cursor.getString(4) ?: "")
+                        put("options", cursor.getString(5))
+                        put("answer", cursor.getString(6))
+                        put("analysis", cursor.getString(7))
+                        put("knowledge_point", cursor.getString(8))
+                        put("source", cursor.getString(9))
+                        put("rate", cursor.getInt(10))
+                        put("difficulty", cursor.getString(11))
+                        put("title_images", cursor.getString(12))
+                    })
+                }
+            }
+            root.put("questions", questionsArr)
+            root.toString(2)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            ""
+        }
+    }
+
+    /** 导入题库数据。支持全库备份还原，或纯外部自定义 JSONArray 模块热导入。 */
+    fun importQuestionsFromJson(
+        jsonStr: String, 
+        parentModule: String? = null, 
+        childModule: String? = null
+    ): Int {
+        val db = writableDatabase
+        var result = 0
+        db.beginTransaction()
+        try {
+            var count = 0
+            if (jsonStr.trim().startsWith("{")) {
+                // 1. 全量备份恢复模式
+                val root = org.json.JSONObject(jsonStr)
+                if (root.optString("backup_type") != "question_bank") return -1
+                
+                db.delete(T_QUESTIONS, null, null)
+                db.delete(T_MATERIALS, null, null)
+                db.delete(T_MODULES, null, null)
+                db.delete(T_FTS, null, null)
+
+                val modules = root.getJSONArray("modules")
+                for (i in 0 until modules.length()) {
+                    val m = modules.getJSONObject(i)
+                    db.insert(T_MODULES, null, ContentValues().apply {
+                        put("id", m.getString("id"))
+                        put("name", m.getString("name"))
+                        val parentId = m.optString("parent_id")
+                        if (parentId.isNotEmpty()) put("parent_id", parentId) else putNull("parent_id")
+                        put("sort_order", m.getInt("sort_order"))
+                    })
+                }
+
+                val materials = root.getJSONArray("materials")
+                for (i in 0 until materials.length()) {
+                    val mat = materials.getJSONObject(i)
+                    db.insert(T_MATERIALS, null, ContentValues().apply {
+                        put("id", mat.getString("id"))
+                        put("content", mat.getString("content"))
+                    })
+                }
+
+                val questions = root.getJSONArray("questions")
+                for (i in 0 until questions.length()) {
+                    val q = questions.getJSONObject(i)
+                    val id = q.getString("id")
+                    val stem = q.getString("stem")
+                    val kp = q.optString("knowledge_point")
+                    db.insert(T_QUESTIONS, null, ContentValues().apply {
+                        put("id", id)
+                        put("module_id", q.getString("module_id"))
+                        put("stem", stem)
+                        put("stem_html", q.optString("stem_html"))
+                        put("material_id", q.optString("material_id"))
+                        put("options", q.optString("options", "[]"))
+                        put("answer", q.getString("answer"))
+                        put("analysis", q.optString("analysis"))
+                        put("knowledge_point", kp)
+                        put("source", q.optString("source"))
+                        put("rate", q.optInt("rate", 0))
+                        put("difficulty", q.optString("difficulty", "medium"))
+                        put("title_images", q.optString("title_images", "[]"))
+                    })
+
+                    db.insert(T_FTS, null, ContentValues().apply {
+                        put("id", id)
+                        put("stem", toBigrams(stem))
+                        put("tags", toBigrams(kp))
+                    })
+                    count++
+                }
+            } else {
+                // 2. 自定义题库单分类导入模式
+                if (parentModule.isNullOrEmpty() || childModule.isNullOrEmpty()) return -2
+                val arr = org.json.JSONArray(jsonStr)
+
+                val parentId = "mod_${parentModule.hashCode().toString().replace("-", "n")}"
+                val childId = "mod_${childModule.hashCode().toString().replace("-", "n")}"
+
+                db.insertWithOnConflict(T_MODULES, null, ContentValues().apply {
+                    put("id", parentId)
+                    put("name", parentModule)
+                    putNull("parent_id")
+                    put("sort_order", 999)
+                }, SQLiteDatabase.CONFLICT_IGNORE)
+
+                db.insertWithOnConflict(T_MODULES, null, ContentValues().apply {
+                    put("id", childId)
+                    put("name", childModule)
+                    put("parent_id", parentId)
+                    put("sort_order", 999)
+                }, SQLiteDatabase.CONFLICT_IGNORE)
+
+                for (i in 0 until arr.length()) {
+                    val q = arr.getJSONObject(i)
+                    val id = q.optString("key").ifBlank { q.optString("id").ifBlank { System.currentTimeMillis().toString() + "_" + i } }
+                    val stem = q.optString("title").ifBlank { q.optString("stem", "") }
+                    if (stem.length < 5) continue
+
+                    val kp = q.optString("knowledge_point", "")
+                    val optionsArr = q.optJSONArray("options")
+                    val optionsStr = if (optionsArr != null) {
+                        val targetArr = org.json.JSONArray()
+                        for (j in 0 until optionsArr.length()) {
+                            val item = optionsArr.get(j)
+                            if (item is org.json.JSONObject) {
+                                targetArr.put(item)
+                            } else {
+                                targetArr.put(org.json.JSONObject().apply {
+                                    put("text", item.toString())
+                                    put("html", "")
+                                    put("images", org.json.JSONArray())
+                                })
+                            }
+                        }
+                        targetArr.toString()
+                    } else "[]"
+
+                    val answer = q.optString("answer", "")
+                    val analysis = q.optString("analysis", "")
+                    val source = q.optString("source", "自定义导入")
+                    val rate = q.optInt("rate", 60)
+                    val stemHtml = q.optString("title_html").ifBlank { q.optString("stem_html", "") }
+                    val titleImages = q.optJSONArray("title_images")?.toString() ?: "[]"
+
+                    var materialId = ""
+                    val materialContent = q.optString("material", "")
+                    if (materialContent.isNotEmpty()) {
+                        materialId = generateMaterialId(materialContent)
+                        db.insertWithOnConflict(T_MATERIALS, null, ContentValues().apply {
+                            put("id", materialId)
+                            put("content", materialContent)
+                        }, SQLiteDatabase.CONFLICT_IGNORE)
+                    }
+
+                    db.insertWithOnConflict(T_QUESTIONS, null, ContentValues().apply {
+                        put("id", id)
+                        put("module_id", childId)
+                        put("stem", stem)
+                        put("stem_html", stemHtml)
+                        put("material_id", materialId)
+                        put("options", optionsStr)
+                        put("answer", answer)
+                        put("analysis", analysis)
+                        put("knowledge_point", kp)
+                        put("source", source)
+                        put("rate", rate)
+                        put("difficulty", calculateDifficulty(rate))
+                        put("title_images", titleImages)
+                    }, SQLiteDatabase.CONFLICT_REPLACE)
+
+                    db.delete(T_FTS, "id = ?", arrayOf(id))
+                    db.insert(T_FTS, null, ContentValues().apply {
+                        put("id", id)
+                        put("stem", toBigrams(stem))
+                        put("tags", toBigrams(kp))
+                    })
+                    count++
+                }
+            }
+            db.setTransactionSuccessful()
+            result = count
+        } catch (e: Exception) {
+            e.printStackTrace()
+            result = -3
+        } finally {
+            db.endTransaction()
+        }
+        return result
+    }
 }

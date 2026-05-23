@@ -46,6 +46,13 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
     private var currentId: String = ""
     private var currentQuestionType: QuestionType? = null
     private var isAiTabActive = false
+    private var cachedItem: WrongQuestion? = null  // 缓存当前错题，避免重复反序列化
+
+    private fun getCurrentItem(): WrongQuestion? {
+        if (cachedItem?.id == currentId) return cachedItem
+        cachedItem = WrongQuestionManager.getWrongQuestions(this).find { it.id == currentId }
+        return cachedItem
+    }
 
     // 解析区域视图
     private lateinit var tabBankAnalysis: TextView
@@ -114,8 +121,7 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
     }
 
     private fun loadDetail() {
-        val items = WrongQuestionManager.getWrongQuestions(this)
-        val item = items.find { it.id == currentId } ?: run {
+        val item = getCurrentItem() ?: run {
             Toast.makeText(this, "错题不存在", Toast.LENGTH_SHORT).show()
             finish()
             return
@@ -255,8 +261,7 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
     }
 
     private fun showEditSummaryDialog() {
-        val items = WrongQuestionManager.getWrongQuestions(this)
-        val item = items.find { it.id == currentId } ?: return
+        val item = getCurrentItem() ?: return
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -322,8 +327,7 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
 
     private fun startAiAnalysis() {
         val questionType = currentQuestionType ?: return
-        val items = WrongQuestionManager.getWrongQuestions(this)
-        val item = items.find { it.id == currentId } ?: return
+        val item = getCurrentItem() ?: return
 
         // 显示加载状态
         tvAiPlaceholder.visibility = View.GONE
@@ -357,7 +361,6 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
             onError = { error ->
                 runOnUiThread {
                     layoutAiLoading.visibility = View.GONE
-                    tvAiPlaceholder.visibility = View.VISIBLE
                     tvAiPlaceholder.visibility = View.VISIBLE
                     btnStartAi.visibility = View.VISIBLE
                     Toast.makeText(this, "AI解析失败: $error", Toast.LENGTH_LONG).show()
@@ -711,7 +714,7 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
     private fun buildUserMessage(item: WrongQuestion): String {
         val sb = StringBuilder()
         sb.appendLine("题目：")
-        sb.appendLine(item.bankStem)
+        sb.appendLine(if (item.isFromBank) item.bankStem else item.questionText)
         sb.appendLine()
         if (item.bankOptions.isNotEmpty()) {
             sb.appendLine("选项：")
@@ -720,15 +723,16 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
             }
             sb.appendLine()
         }
-        sb.appendLine("正确答案：${item.bankAnswer}")
+        if (item.bankAnswer.isNotEmpty()) {
+            sb.appendLine("正确答案：${item.bankAnswer}")
+        }
         return sb.toString()
     }
 
     // ==================== 导出长图功能 ====================
 
     private fun exportAsImage() {
-        val items = WrongQuestionManager.getWrongQuestions(this)
-        val item = items.find { it.id == currentId } ?: return
+        val item = getCurrentItem() ?: return
 
         Toast.makeText(this, "正在生成长图...", Toast.LENGTH_SHORT).show()
 

@@ -42,26 +42,24 @@
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <!-- 编辑按钮 -->
             <TextView
                 android:id="@+id/btn_edit_card"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:text="✎"
+                android:text="编辑"
                 android:textColor="@color/primary"
-                android:textSize="16sp"
+                android:textSize="12sp"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="编辑" />
 
-            <!-- 导出按钮 -->
             <TextView
                 android:id="@+id/btn_export_card"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:text="📤"
+                android:text="导出"
                 android:textColor="@color/primary"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="导出图片" />
@@ -83,14 +81,13 @@
             android:layout_height="1dp"
             android:background="@color/card_divider" />
 
-        <!-- 快捷配置工具条 (当前题型 & 当前老师 & 发送模式) -->
         <LinearLayout
             android:id="@+id/layout_config_toolbar"
             android:layout_width="match_parent"
             android:layout_height="38dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:background="#FAF8F5"
+            android:background="@color/background"
             android:paddingStart="6dp"
             android:paddingEnd="6dp">
 
@@ -110,34 +107,37 @@
                     android:id="@+id/tv_active_teacher_float"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="👤 老师: 花生"
+                    android:text="老师: 花生"
                     android:textSize="11sp"
                     android:textColor="@color/primary"
                     android:textStyle="bold" />
             </LinearLayout>
 
             <View
+                android:id="@+id/divider_type_float"
                 android:layout_width="1dp"
                 android:layout_height="16dp"
-                android:background="@color/card_divider" />
+                android:background="@color/card_divider"
+                android:visibility="gone" />
 
             <!-- 题型快捷切换 -->
             <LinearLayout
                 android:id="@+id/btn_switch_type_float"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1.1"
+                android:layout_weight="0.0"
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:background="?android:attr/selectableItemBackground"
                 android:clickable="true"
-                android:focusable="true">
+                android:focusable="true"
+                android:visibility="gone">
 
                 <TextView
                     android:id="@+id/tv_active_type_float"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🏷️ 题型: 片段阅读"
+                    android:text="题型: 片段阅读"
                     android:textSize="11sp"
                     android:textColor="@color/primary"
                     android:textStyle="bold" />
@@ -146,7 +146,8 @@
             <View
                 android:layout_width="1dp"
                 android:layout_height="16dp"
-                android:background="@color/card_divider" />
+                android:background="@color/card_divider"
+                android:visibility="gone" />
 
             <!-- 发送模式快捷切换 -->
             <LinearLayout
@@ -164,19 +165,18 @@
                     android:id="@+id/tv_active_mode_float"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🔮 模式: 文字"
+                    android:text="模式: 文字"
                     android:textSize="11sp"
                     android:textColor="@color/primary"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 快捷名师切换面板 -->
         <FrameLayout
             android:id="@+id/panel_switch_teacher"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#FAF8F5"
+            android:background="@color/background"
             android:visibility="gone">
 
             <LinearLayout
@@ -194,12 +194,11 @@
                 android:background="@color/card_divider" />
         </FrameLayout>
 
-        <!-- 快捷题型切换面板 -->
         <FrameLayout
             android:id="@+id/panel_switch_type"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#FAF8F5"
+            android:background="@color/background"
             android:visibility="gone">
 
             <LinearLayout
@@ -299,7 +298,8 @@
                             android:textColor="#2563EB"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            android:layout_marginEnd="8dp" />
+                            android:layout_marginEnd="8dp"
+                            android:visibility="gone" />
 
                         <TextView
                             android:id="@+id/tv_tag_passage_type"
@@ -312,7 +312,8 @@
                             android:paddingBottom="4dp"
                             android:textColor="#2563EB"
                             android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:textStyle="bold"
+                            android:visibility="gone" />
                     </LinearLayout>
 
                     <!-- 题目框 -->
@@ -374,12 +375,11 @@
                             android:textIsSelectable="true"/>
                     </LinearLayout>
 
-                    <!-- 选项解析标题 -->
                     <TextView
                         android:id="@+id/tv_options_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="📋 选项解析"
+                        android:text="选项解析"
                         android:textColor="#1F2937"
                         android:textSize="14sp"
                         android:textStyle="bold"
@@ -394,12 +394,11 @@
                         android:orientation="vertical"
                         android:visibility="gone"/>
 
-                    <!-- 逻辑标签标题 -->
                     <TextView
                         android:id="@+id/tv_logical_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="🏷️ 逻辑结构"
+                        android:text="逻辑结构"
                         android:textColor="#1F2937"
                         android:textSize="14sp"
                         android:textStyle="bold"

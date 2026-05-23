@@ -204,10 +204,6 @@ internal fun ScreenCaptureService.showAreaSelectionOverlay(fullBitmap: Bitmap, s
             reattachFloatBall()
             reattachSmallBall()
             fullBitmap.recycle()
-            if (isSilentCapture) {
-                isSilentCapture = false
-                reattachSmallBall()
-            }
         }
     )
 

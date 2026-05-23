@@ -50,6 +50,23 @@ class HomeFragment : Fragment() {
     private lateinit var rbActionAi: android.widget.RadioButton
     private lateinit var rbActionRecord: android.widget.RadioButton
 
+    private var layoutBrandHeader: View? = null
+    private var tvSubtitle: TextView? = null
+    private var tvTitle: TextView? = null
+
+    private val zenQuotes = listOf(
+        Pair("博学之，审问之，慎思之，明辨之，笃行之。", "——《礼记》"),
+        Pair("积土成山，风雨兴焉；积水成渊，蛟龙生焉。", "—— 荀子"),
+        Pair("不积跬步，无以至千里；不积小流，无以成江海。", "—— 荀子"),
+        Pair("操千曲而后晓声，观千剑而后识器。", "—— 刘勰"),
+        Pair("天下难事，必作于易；天下大事，必作于细。", "—— 老子"),
+        Pair("知之者不如好之者，好之者不如乐之者。", "—— 孔子"),
+        Pair("纸上得来终觉浅，绝知此事要躬行。", "—— 陆游"),
+        Pair("静以修身，俭以养德。非淡泊无以明志，非宁静无以致远。", "—— 诸葛亮"),
+        Pair("路漫漫其修远兮，吾将上下而求索。", "—— 屈原"),
+        Pair("水滴石穿，非力使然，恒也。", "—— 罗曼·罗兰")
+    )
+
     private var currentQuestionType = QuestionType.PIAN_DUAN_YUE_DU
     private val bankReadyListener: () -> Unit = { loadModules() }
 
@@ -68,10 +85,17 @@ class HomeFragment : Fragment() {
         setupListeners()
         buildTypeChips()
         loadModules()
+        updateHeaderGreeting()
+        showRandomQuote(false)
+
+        // 开启 staggered 卡片入场动画，营造高级交互体验
+        val container = (view as? ViewGroup)?.getChildAt(0) as? ViewGroup
+        container?.let { animateEntrance(it) }
     }
 
     override fun onResume() {
         super.onResume()
+        updateHeaderGreeting()
         updateFloatStatus(listener?.isServiceRunning() == true)
         updateTeacherDisplay()
         QuestionBankManager.addOnReadyListener(bankReadyListener)
@@ -97,6 +121,13 @@ class HomeFragment : Fragment() {
     }
 
     private fun bindViews(view: View) {
+        val act = activity
+        if (act != null) {
+            layoutBrandHeader = act.findViewById(R.id.layout_brand_header)
+            tvSubtitle = act.findViewById(R.id.tv_subtitle)
+            tvTitle = act.findViewById(R.id.tv_title)
+        }
+
         switchFloatBall = view.findViewById(R.id.switch_float_ball)
         switchKeepScreenOn = view.findViewById(R.id.switch_keep_screen_on)
         tvFloatStatus = view.findViewById(R.id.tv_float_status)
@@ -135,6 +166,10 @@ class HomeFragment : Fragment() {
 
     private fun setupListeners() {
         val ctx = requireContext()
+
+        layoutBrandHeader?.setOnClickListener {
+            showRandomQuote(true)
+        }
 
         btnManageTeachers.setOnClickListener { showTeacherDialog() }
 
@@ -403,5 +438,54 @@ class HomeFragment : Fragment() {
             (resources.displayMetrics.widthPixels * 0.9).toInt(),
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT
         )
+    }
+
+    private fun getActiveQuotes(): List<Pair<String, String>> {
+        val ctx = context ?: return zenQuotes
+        val custom = AppPreferences.getCustomQuotes(ctx)
+        return if (custom.isNotEmpty()) custom else zenQuotes
+    }
+
+    private fun showRandomQuote(animate: Boolean) {
+        val quotes = getActiveQuotes()
+        if (quotes.isEmpty()) return
+        val (quoteText, quoteAuthor) = quotes.random()
+        val combined = "「 $quoteText 」 $quoteAuthor"
+        val subtitle = tvSubtitle ?: return
+        if (animate) {
+            subtitle.animate().alpha(0f).setDuration(220).withEndAction {
+                subtitle.text = combined
+                subtitle.animate().alpha(1f).setDuration(220).start()
+            }.start()
+        } else {
+            subtitle.text = combined
+        }
+    }
+
+    private fun updateHeaderGreeting() {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val greeting = when (hour) {
+            in 5..11 -> "清晨静学"
+            in 12..17 -> "午后静学"
+            in 18..22 -> "黄昏静学"
+            else -> "夜深静学"
+        }
+        tvTitle?.text = greeting
+    }
+
+    private fun animateEntrance(container: ViewGroup) {
+        val count = container.childCount
+        for (i in 0 until count) {
+            val child = container.getChildAt(i)
+            child.alpha = 0f
+            child.translationY = 50f
+            child.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(450)
+                .setStartDelay(i * 80L)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+        }
     }
 }
