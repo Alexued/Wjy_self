@@ -20,17 +20,25 @@ class AreaSelectionOverlay(
 
     // 画笔：半透明蒙层
     private val dimPaint = Paint().apply {
-        color = Color.parseColor("#88000000")
+        color = Color.parseColor("#771E2D27") // 极富禅意的松绿树影深色蒙层
         style = Paint.Style.FILL
     }
 
     // 画笔：选框边框
     private val borderPaint = Paint().apply {
-        color = Color.parseColor("#6C63FF")
+        color = Color.parseColor("#8FBC8F") // 抹茶绿描边
         style = Paint.Style.STROKE
-        strokeWidth = 4f
+        strokeWidth = 2.5f // 更精细优雅的细线
         isAntiAlias = true
-        pathEffect = DashPathEffect(floatArrayOf(16f, 8f), 0f)
+    }
+
+    // L型角标画笔
+    private val cornerPaint = Paint().apply {
+        color = Color.parseColor("#5C8271") // 深抹茶绿重色角标
+        style = Paint.Style.STROKE
+        strokeWidth = 8f
+        isAntiAlias = true
+        strokeCap = Paint.Cap.ROUND
     }
 
     // 画笔：选框填充
@@ -50,7 +58,7 @@ class AreaSelectionOverlay(
 
     // 尺寸标注文字画笔
     private val sizePaint = Paint().apply {
-        color = Color.parseColor("#BBBBBB")
+        color = Color.parseColor("#5C8271")
         textSize = 32f
         textAlign = Paint.Align.CENTER
         isAntiAlias = true
@@ -58,25 +66,32 @@ class AreaSelectionOverlay(
 
     // 确认按钮区域
     private val confirmPaint = Paint().apply {
-        color = Color.parseColor("#6C63FF")
+        color = Color.parseColor("#5C8271") // 抹茶重色
         style = Paint.Style.FILL
         isAntiAlias = true
     }
 
-    private val cancelPaint = Paint(confirmPaint).apply { color = Color.parseColor("#555555") }
+    // 取消按钮区域
+    private val cancelPaint = Paint().apply {
+        color = Color.parseColor("#E2EFE7") // 抹茶淡色背景
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
 
     private val confirmTextPaint = Paint().apply {
         color = Color.WHITE
-        textSize = 36f
+        textSize = 34f
         textAlign = Paint.Align.CENTER
         isAntiAlias = true
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
 
-    // 手柄圆点画笔
-    private val handlePaint = Paint().apply {
-        color = Color.WHITE
-        style = Paint.Style.FILL
+    private val cancelTextPaint = Paint().apply {
+        color = Color.parseColor("#5C8271")
+        textSize = 34f
+        textAlign = Paint.Align.CENTER
         isAntiAlias = true
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
 
     private var selectionRect = RectF()
@@ -207,70 +222,125 @@ class AreaSelectionOverlay(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // 1. 全屏半透明蒙层
+        // 1. 全屏松绿树影半透明蒙层
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
 
         if (hasSelection || currentMode != TouchMode.NONE) {
             // 2. 选区挖洞
             canvas.drawRect(selectionRect, clearPaint)
-            // 3. 虚线边框
+            // 3. 抹茶绿细线选框
             canvas.drawRect(selectionRect, borderPaint)
 
-            // 4. 画调节手柄
+            // 4. 画专业 L-型调节手柄
             if (hasSelection && currentMode == TouchMode.NONE) {
                 drawHandles(canvas)
             }
 
-            // 5. 尺寸标注
-            val sizeText = "${selectionRect.width().toInt()} × ${selectionRect.height().toInt()}"
-            val ty = if (selectionRect.top > 80) selectionRect.top - 20f else selectionRect.bottom + 50f
-            canvas.drawText(sizeText, selectionRect.centerX(), ty, sizePaint)
+            // 5. 尺寸标注气泡 (Zen 风格浮空标签)
+            val sizeText = " 📐 ${selectionRect.width().toInt()} × ${selectionRect.height().toInt()} "
+            val textWidth = sizePaint.measureText(sizeText)
+            val textHeight = sizePaint.fontMetrics.descent - sizePaint.fontMetrics.ascent
+            val cx = selectionRect.centerX()
+            val ty = if (selectionRect.top > 90) selectionRect.top - 30f else selectionRect.bottom + 60f
+            
+            // 绘制气泡背景
+            val bubbleRect = RectF(cx - textWidth/2 - 20f, ty - textHeight/2 - 12f, cx + textWidth/2 + 20f, ty + textHeight/2 + 4f)
+            val bubbleBgPaint = Paint().apply {
+                color = Color.parseColor("#FAF7F2") // 禅暖沙色底色
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            canvas.drawRoundRect(bubbleRect, 20f, 20f, bubbleBgPaint)
+            
+            // 绘制气泡描边
+            val bubbleBorderPaint = Paint().apply {
+                color = Color.parseColor("#D5CDBC") // 柔砂描边
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+                isAntiAlias = true
+            }
+            canvas.drawRoundRect(bubbleRect, 20f, 20f, bubbleBorderPaint)
+            
+            // 绘制文字
+            canvas.drawText(sizeText, cx, ty - sizePaint.fontMetrics.ascent - textHeight/2 - 4f, sizePaint)
         }
 
-        // 6. 按钮或提示
+        // 6. 按钮或悬浮提示
         if (hasSelection && currentMode == TouchMode.NONE) {
             drawButtons(canvas)
         } else if (!hasSelection && currentMode == TouchMode.NONE) {
-            canvas.drawText("拖动手指框选截图区域", width / 2f, height / 2f, textPaint)
+            // 绘制高大上 Zen 风格提示框
+            val tipText = " 💡 拖动手指框选截图区域 "
+            textPaint.color = Color.parseColor("#5C8271")
+            textPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            val textWidth = textPaint.measureText(tipText)
+            val textHeight = textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent
+            val cx = width / 2f
+            val cy = height / 2f
+            
+            val tipRect = RectF(cx - textWidth/2 - 30f, cy - textHeight/2 - 20f, cx + textWidth/2 + 30f, cy + textHeight/2 + 20f)
+            val tipBgPaint = Paint().apply {
+                color = Color.parseColor("#FAF7F2") // 暖沙背景
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            canvas.drawRoundRect(tipRect, 32f, 32f, tipBgPaint)
+            
+            val tipBorderPaint = Paint().apply {
+                color = Color.parseColor("#D5CDBC")
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+                isAntiAlias = true
+            }
+            canvas.drawRoundRect(tipRect, 32f, 32f, tipBorderPaint)
+            
+            canvas.drawText(tipText, cx, cy - textPaint.fontMetrics.ascent - textHeight/2, textPaint)
         }
     }
 
     private fun drawHandles(canvas: Canvas) {
         val r = selectionRect
-        // 四角
-        canvas.drawCircle(r.left, r.top, HANDLE_RADIUS, handlePaint)
-        canvas.drawCircle(r.right, r.top, HANDLE_RADIUS, handlePaint)
-        canvas.drawCircle(r.left, r.bottom, HANDLE_RADIUS, handlePaint)
-        canvas.drawCircle(r.right, r.bottom, HANDLE_RADIUS, handlePaint)
-        // 四边中点
-        canvas.drawCircle(r.centerX(), r.top, HANDLE_RADIUS, handlePaint)
-        canvas.drawCircle(r.centerX(), r.bottom, HANDLE_RADIUS, handlePaint)
-        canvas.drawCircle(r.left, r.centerY(), HANDLE_RADIUS, handlePaint)
-        canvas.drawCircle(r.right, r.centerY(), HANDLE_RADIUS, handlePaint)
+        val len = 36f // 角标线段长度
+        
+        // 1. 左上角 L
+        canvas.drawLine(r.left, r.top, r.left + len, r.top, cornerPaint)
+        canvas.drawLine(r.left, r.top, r.left, r.top + len, cornerPaint)
+        
+        // 2. 右上角 L
+        canvas.drawLine(r.right, r.top, r.right - len, r.top, cornerPaint)
+        canvas.drawLine(r.right, r.top, r.right, r.top + len, cornerPaint)
+        
+        // 3. 左下角 L
+        canvas.drawLine(r.left, r.bottom, r.left + len, r.bottom, cornerPaint)
+        canvas.drawLine(r.left, r.bottom, r.left, r.bottom - len, cornerPaint)
+        
+        // 4. 右下角 L
+        canvas.drawLine(r.right, r.bottom, r.right - len, r.bottom, cornerPaint)
+        canvas.drawLine(r.right, r.bottom, r.right, r.bottom - len, cornerPaint)
     }
 
     private fun drawButtons(canvas: Canvas) {
         val rect = selectionRect
-        val btnW = 180f
-        val btnH = 70f
-        val gap = 40f
-        val btnY = (rect.bottom + 40f).coerceAtMost(height - btnH - 30f)
+        val btnW = 190f
+        val btnH = 80f
+        val gap = 48f
+        val btnY = (rect.bottom + 50f).coerceAtMost(height - btnH - 30f)
 
         // 确认按钮
         confirmBtnRect = RectF(
             rect.centerX() - btnW - gap / 2, btnY,
             rect.centerX() - gap / 2, btnY + btnH
         )
-        canvas.drawRoundRect(confirmBtnRect, 16f, 16f, confirmPaint)
-        canvas.drawText("✓ 确认", confirmBtnRect.centerX(), confirmBtnRect.centerY() + 14f, confirmTextPaint)
+        canvas.drawRoundRect(confirmBtnRect, btnH / 2, btnH / 2, confirmPaint)
+        canvas.drawText("✓ 确认", confirmBtnRect.centerX(), confirmBtnRect.centerY() - (confirmTextPaint.fontMetrics.ascent + confirmTextPaint.fontMetrics.descent) / 2, confirmTextPaint)
 
         // 取消按钮
         cancelBtnRect = RectF(
             rect.centerX() + gap / 2, btnY,
             rect.centerX() + btnW + gap / 2, btnY + btnH
         )
-        canvas.drawRoundRect(cancelBtnRect, 16f, 16f, cancelPaint)
-        canvas.drawText("✕ 取消", cancelBtnRect.centerX(), cancelBtnRect.centerY() + 14f, confirmTextPaint)
+        canvas.drawRoundRect(cancelBtnRect, btnH / 2, btnH / 2, cancelPaint)
+        canvas.drawText("✕ 取消", cancelBtnRect.centerX(), cancelBtnRect.centerY() - (cancelTextPaint.fontMetrics.ascent + cancelTextPaint.fontMetrics.descent) / 2, cancelTextPaint)
     }
 
     private fun deliverResult() {

@@ -236,7 +236,11 @@ try {
             if (currentIndex > 0) showQuestion(currentIndex - 1)
         }
         btnNext.setOnClickListener {
-            if (currentIndex < questions.size - 1) showQuestion(currentIndex + 1)
+            if (currentIndex < questions.size - 1) {
+                showQuestion(currentIndex + 1)
+            } else {
+                showEndingDialog()
+            }
         }
     }
 
@@ -307,7 +311,11 @@ try {
         updateProgress()
 
         btnPrev.isEnabled = index > 0
-        btnNext.isEnabled = index < questions.size - 1
+        if (index == questions.size - 1) {
+            btnNext.text = "完成训练"
+        } else {
+            btnNext.text = "下一题"
+        }
     }
 
     private fun formatBlanks(text: String): String {
@@ -492,6 +500,8 @@ try {
         isAnswerShown = true
 
         val question = questions[currentIndex]
+        QuestionBankManager.markQuestionCompleted(question.id)
+
         val correctIndex = question.answer.firstOrNull()?.minus('A') ?: return
 
         if (selectedOption == correctIndex) {
@@ -606,6 +616,85 @@ try {
                 }
             }
         )
+    }
+
+    private fun showEndingDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_practice_ending, null)
+        
+        val tvAccuracy = dialogView.findViewById<TextView>(R.id.tv_ending_accuracy)
+        val tvTotal = dialogView.findViewById<TextView>(R.id.tv_ending_total)
+        val tvCorrect = dialogView.findViewById<TextView>(R.id.tv_ending_correct)
+        val tvWrong = dialogView.findViewById<TextView>(R.id.tv_ending_wrong)
+        val tvQuote = dialogView.findViewById<TextView>(R.id.tv_ending_quote)
+        val tvTeacherName = dialogView.findViewById<TextView>(R.id.tv_ending_teacher_name)
+        val btnRestart = dialogView.findViewById<View>(R.id.btn_ending_restart)
+        val btnClose = dialogView.findViewById<View>(R.id.btn_ending_close)
+        
+        val answeredCount = correctCount + wrongCount
+        val accuracy = if (answeredCount > 0) (correctCount * 100 / answeredCount) else 0
+        
+        tvAccuracy.text = "$accuracy%"
+        tvTotal.text = "${questions.size}"
+        tvCorrect.text = "$correctCount"
+        tvWrong.text = "$wrongCount"
+        
+        // 老师鼓励寄语
+        val teacherName = com.example.aiassistant.TeacherManager.activeTeacher.name
+        tvTeacherName.text = "—— $teacherName"
+        
+        val quotes = listOf(
+            "读书百遍，其义自见。继续加油，胜利就在前方！",
+            "精诚所至，金石为开。每一次答题都是一次成长！",
+            "积土成山，风雨兴焉；积水成渊，蛟龙生焉。",
+            "不积跬步，无以至千里；不积小流，无以成江海。",
+            "温故而知新，可以为师矣。坚持就是胜利！",
+            "知之者不如好之者，好之者不如乐之者。",
+            "纸上得来终觉浅，绝知此事要躬行。加油！"
+        )
+        tvQuote.text = "“${quotes.random()}”"
+        
+        val alertDialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+            
+        // 设置对话框圆角和透明背景以显示自定义布局的圆角
+        alertDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        
+        btnRestart.setOnClickListener {
+            alertDialog.dismiss()
+            restartTraining()
+        }
+        
+        btnClose.setOnClickListener {
+            alertDialog.dismiss()
+            finish()
+        }
+        
+        alertDialog.show()
+    }
+
+    private fun restartTraining() {
+        currentIndex = 0
+        selectedOption = -1
+        isAnswerShown = false
+        correctCount = 0
+        wrongCount = 0
+        
+        Toast.makeText(this, "正在为您加载下一组题目...", Toast.LENGTH_SHORT).show()
+        
+        // 重新查询新的一组题目！
+        questions = com.example.aiassistant.questionbank.QuestionBankManager.getQuestionsByRateRange(
+            moduleId, rateMin, rateMax, questionCount
+        )
+        
+        if (questions.isEmpty()) {
+            Toast.makeText(this, "没有符合条件的题目", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+        
+        showQuestion(0)
     }
 
     override fun onDestroy() {

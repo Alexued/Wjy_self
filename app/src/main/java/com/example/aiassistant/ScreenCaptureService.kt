@@ -441,7 +441,7 @@ class ScreenCaptureService : Service() {
                 // 自动恢复失败，直接弹系统授权弹窗（无需绕道 MainActivity）
                 isRequestingConsent = true
                 val consentIntent = Intent(this, MediaProjectionConsentActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
                 }
                 startActivity(consentIntent)
                 return
@@ -834,6 +834,7 @@ class ScreenCaptureService : Service() {
     ) {
         if (isDictOcrMode) {
             isDictOcrMode = false
+            Log.i(TAG, "词典识词模式触发，OCR文本前100字=${ocrText.take(100)}")
             mainHandler.post {
                 hideBallProgress()
                 performDictOcrSearch(ocrText)
@@ -846,12 +847,12 @@ class ScreenCaptureService : Service() {
         var prompt = AppPreferences.getPromptForType(this, questionType)
 
         // 题库匹配
-        Log.d(TAG, "题库查询: 文本前80字=${ocrText.take(80)}")
+        Log.i(TAG, "题库查询: 文本前80字=${ocrText.take(80)}")
         val bankMatch = QuestionBankManager.search(ocrText)
         if (bankMatch != null) {
-            Log.d(TAG, "题库命中: ${bankMatch.id}, 答案=${bankMatch.answer}")
+            Log.i(TAG, "题库命中: ${bankMatch.id}, 答案=${bankMatch.answer}")
         } else {
-            Log.d(TAG, "题库未命中 (已加载=${QuestionBankManager.isLoaded()}, 文本长度=${ocrText.length})")
+            Log.i(TAG, "题库未命中 (已加载=${QuestionBankManager.isLoaded()}, 文本长度=${ocrText.length})")
         }
         lastBankMatch = bankMatch
 
@@ -1890,11 +1891,23 @@ class ScreenCaptureService : Service() {
         val wordsToSearch = mutableListOf<String>()
 
         if (bankMatch != null) {
-            Log.d(TAG, "词库识图模式 - 题库命中！ID=${bankMatch.id}")
-            wordsToSearch.addAll(extractCleanWordsFromOptions(bankMatch.options))
+            Log.i(TAG, "词库识图模式 - 题库命中！ID=${bankMatch.id}, 选项数=${bankMatch.options.size}")
+            for ((i, opt) in bankMatch.options.withIndex()) {
+                Log.i(TAG, "  选项$i: text='${opt.text}'")
+            }
+            val extracted = extractCleanWordsFromOptions(bankMatch.options)
+            Log.i(TAG, "词库识图模式 - 从选项中提取到 ${extracted.size} 个词: $extracted")
+            wordsToSearch.addAll(extracted)
         } else {
-            Log.d(TAG, "词库识图模式 - 题库未命中，走滑动窗口文本词汇扫描")
-            wordsToSearch.addAll(extractCandidatesFromText(cleanedText))
+            Log.i(TAG, "词库识图模式 - 题库未命中，执行OCR文本选项词汇智能提取")
+            val ocrOptions = extractCleanWordsFromOcrOptions(cleanedText)
+            if (ocrOptions.isNotEmpty()) {
+                Log.i(TAG, "成功从 OCR 文本中提取到选项词汇: $ocrOptions")
+                wordsToSearch.addAll(ocrOptions)
+            } else {
+                Log.i(TAG, "OCR 文本中无明显选项格式，走智能滑动窗口文本扫描")
+                wordsToSearch.addAll(extractCandidatesFromText(cleanedText))
+            }
         }
 
         // 2. 内存词库匹配
@@ -1928,7 +1941,7 @@ class ScreenCaptureService : Service() {
             }
         }
 
-        Log.d(TAG, "词库匹配完成，命中词汇量=${distinctList.size}")
+        Log.i(TAG, "词库匹配完成，搜索词数=${wordsToSearch.size}，命中词汇量=${distinctList.size}")
 
         // 4. 显示浮空卡片结果
         mainHandler.post {
@@ -1946,33 +1959,65 @@ class ScreenCaptureService : Service() {
                 // 正则过滤 [A-D] 后可能伴随的英文句点、中文顿号、空格等干扰
                 val cleanOpt = rawOpt.replaceFirst(Regex("^[A-D][\\s\\.\\s、]*"), "").trim()
                 if (cleanOpt.isNotBlank()) {
-                    // 支持切分多个词汇
+                    // 按空格/标点切分，提取所有 2-10 字的中文词
                     val parts = cleanOpt.split(Regex("[\\s\\p{Punct}、\\u3001]+"))
                     for (p in parts) {
                         val trimP = p.trim()
-                        if (trimP.length in 2..10) {
+                        if (trimP.length in 2..10 && trimP.matches(Regex("[\\u4e00-\\u9fa5]+"))) {
                             list.add(trimP)
                         }
                     }
                 }
             }
         }
+        Log.i(TAG, "选项词汇提取结果: ${list.size} 个词 <- ${options.map { it.text }}")
         return list
     }
 
+    private fun extractCleanWordsFromOcrOptions(text: String): List<String> {
+        val candidates = mutableListOf<String>()
+        // 匹配 A/B/C/D(包含大小写) 开头，后跟中文和常见标点的选项内容
+        val optionRegex = Regex("[A-D|a-d][\\s\\.\\s、\\s.-]*([\\u4e00-\\u9fa5\\s\\p{Punct}、\\u3001]+)")
+        val matches = optionRegex.findAll(text)
+        
+        for (match in matches) {
+            val content = match.groups[1]?.value?.trim() ?: continue
+            if (content.isNotBlank()) {
+                val parts = content.split(Regex("[\\s\\p{Punct}、\\u3001]+"))
+                for (p in parts) {
+                    val trimP = p.trim()
+                    if (trimP.length in 2..10) {
+                        candidates.add(trimP)
+                    }
+                }
+            }
+        }
+        return candidates.distinct()
+    }
+
     private fun extractCandidatesFromText(text: String): List<String> {
+        val stopWords = setOf(
+            "下列", "关于", "符合", "正确", "错误", "一项", "选择", "选项", "根据", "文中", 
+            "划横", "使用", "不当", "填入", "括号", "最恰", "成语", "词语", "意思", "解释", 
+            "说明", "表达", "指出", "部分", "内容", "什么", "怎么", "哪里", "哪个", "能够",
+            "可以", "可能", "应该", "为了", "因此", "所以", "但是", "然而", "如果", "进行"
+        )
         val words = mutableListOf<String>()
         val blocks = text.split(Regex("[^\\u4e00-\\u9fa5]+"))
         for (block in blocks) {
             if (block.isBlank()) continue
             if (block.length in 2..4) {
-                words.add(block)
+                if (block !in stopWords) {
+                    words.add(block)
+                }
             } else if (block.length > 4) {
                 // 用滑动窗口切片出所有可能成语或词组片段
                 for (len in 4 downTo 2) {
                     for (i in 0..block.length - len) {
                         val sub = block.substring(i, i + len)
-                        words.add(sub)
+                        if (sub !in stopWords) {
+                            words.add(sub)
+                        }
                     }
                 }
             }

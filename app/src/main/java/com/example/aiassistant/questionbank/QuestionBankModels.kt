@@ -8,6 +8,7 @@ data class QuestionModule(
     val name: String,
     val parentId: String? = null,
     var questionCount: Int = 0,
+    var completedCount: Int = 0,
     val children: MutableList<QuestionModule> = mutableListOf()
 )
 

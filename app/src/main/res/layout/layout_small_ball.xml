@@ -1,11 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 静默搜题小悬浮球 -->
-<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.example.aiassistant.CustomFloatingBallView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/iv_ball"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:src="@drawable/ic_visual_search"
-    android:padding="8dp"
-    android:scaleType="centerInside"
-    android:background="@drawable/bg_float_circle"
     android:contentDescription="静默搜题" />

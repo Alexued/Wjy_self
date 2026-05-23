@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">陪你刷</string>
+    <string name="app_name">陪陪刷</string>
 
     <!-- 题库练习设置 -->
     <string-array name="default_rate_range">

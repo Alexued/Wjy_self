@@ -499,8 +499,19 @@ object AppPreferences {
     val ALL_MENU_ITEMS = listOf(
         "dict" to "词典查询",
         "capture_mode" to "切换截图模式",
+        "click_action" to "切换单击动作",
         "close" to "关闭悬浮球"
     )
+
+    // ── 悬浮球菜单尺寸（直接存 dp 值，28~48） ────────────────────────
+    private const val KEY_BALL_MENU_SIZE_DP = "ball_menu_size_dp"
+    private const val DEFAULT_BALL_MENU_SIZE_DP = 36
+
+    fun getBallMenuSizeDp(context: Context): Int =
+        prefs(context).getInt(KEY_BALL_MENU_SIZE_DP, DEFAULT_BALL_MENU_SIZE_DP)
+
+    fun setBallMenuSizeDp(context: Context, dp: Int) =
+        prefs(context).edit().putInt(KEY_BALL_MENU_SIZE_DP, dp.coerceIn(28, 48)).apply()
 
     // ── 首次进入番茄钟引导 ──
     private const val KEY_POMODORO_FIRST_ENTRY = "pomodoro_first_entry"
@@ -612,12 +623,19 @@ object AppPreferences {
             val keys = data.keys()
             while (keys.hasNext()) {
                 val key = keys.next()
-                when (val value = data.get(key)) {
-                    is Boolean -> editor.putBoolean(key, value)
-                    is Int -> editor.putInt(key, value)
-                    is Long -> editor.putLong(key, value)
-                    is Float -> editor.putFloat(key, value)
-                    is String -> editor.putString(key, value)
+                val value = data.get(key)
+                if (value is Boolean) {
+                    editor.putBoolean(key, value)
+                } else if (value is Int) {
+                    editor.putInt(key, value)
+                } else if (value is Long) {
+                    editor.putLong(key, value)
+                } else if (value is Double) {
+                    editor.putFloat(key, value.toFloat())
+                } else if (value is Float) {
+                    editor.putFloat(key, value)
+                } else if (value != org.json.JSONObject.NULL) {
+                    editor.putString(key, value.toString())
                 }
             }
             editor.apply()

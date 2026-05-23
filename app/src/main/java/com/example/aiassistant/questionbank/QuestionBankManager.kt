@@ -27,7 +27,10 @@ object QuestionBankManager {
         onReadyListeners.remove(listener)
     }
 
-    fun init(context: Context) {
+    fun init(context: Context, force: Boolean = false) {
+        if (force) {
+            ready = false
+        }
         if (ready || importing) return
         val appCtx = context.applicationContext
 
@@ -60,9 +63,9 @@ object QuestionBankManager {
 
                 if (needReimport) {
                     importing = true
-                    Log.d(TAG, "开始导入题库...")
+                    Log.i(TAG, "开始导入题库...")
                     dbHelper.importFromAssets(appCtx) { msg ->
-                        Log.d(TAG, msg)
+                        Log.i(TAG, msg)
                     }
                     importing = false
                 }
@@ -70,7 +73,7 @@ object QuestionBankManager {
                 ready = true
                 val modules = getModules()
                 val totalQuestions = modules.sumOf { it.questionCount + it.children.sumOf { child -> child.questionCount } }
-                Log.d(TAG, "题库就绪: ${modules.size} 大模块, $totalQuestions 题, 耗时 ${System.currentTimeMillis() - t0}ms")
+                Log.i(TAG, "题库就绪: ${modules.size} 大模块, $totalQuestions 题, 耗时 ${System.currentTimeMillis() - t0}ms")
 
                 // 通知所有监听器
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -127,6 +130,12 @@ object QuestionBankManager {
 
     fun getQuestionCountByRateRange(moduleId: String, rateMin: Int, rateMax: Int): Int {
         return db?.getQuestionCountByRateRange(moduleId, rateMin, rateMax) ?: 0
+    }
+
+    fun markQuestionCompleted(questionId: String) {
+        executor.execute {
+            db?.markQuestionCompleted(questionId)
+        }
     }
 
     fun search(ocrText: String): Question? {

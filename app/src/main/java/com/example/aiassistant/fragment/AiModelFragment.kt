@@ -357,6 +357,27 @@ class AiModelFragment : Fragment() {
                 .show()
         }
 
+        // ── 悬浮球单击行为 ──
+        val btnClickAction = view?.findViewById<TextView>(R.id.btn_click_action) ?: return
+        val tvClickActionDesc = view?.findViewById<TextView>(R.id.tv_click_action_desc) ?: return
+        fun updateClickActionDisplay() {
+            tvClickActionDesc.text = if (AppPreferences.getFloatClickAction(ctx) == AppPreferences.CLICK_ACTION_RECORD_WRONG) "仅记录错题" else "AI 智能分析"
+        }
+        updateClickActionDisplay()
+        btnClickAction.setOnClickListener {
+            val options = arrayOf("AI 智能分析", "仅记录错题")
+            val current = if (AppPreferences.getFloatClickAction(ctx) == AppPreferences.CLICK_ACTION_RECORD_WRONG) 1 else 0
+            AlertDialog.Builder(ctx)
+                .setTitle("单击悬浮球行为")
+                .setSingleChoiceItems(options, current) { dialog, which ->
+                    AppPreferences.setFloatClickAction(ctx, if (which == 1) AppPreferences.CLICK_ACTION_RECORD_WRONG else AppPreferences.CLICK_ACTION_AI_ANALYZE)
+                    updateClickActionDisplay()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+
         // ── 悬浮球长按行为 ──
         val btnLongPress = view?.findViewById<TextView>(R.id.btn_long_press) ?: return
         val tvLongPressDesc = view?.findViewById<TextView>(R.id.tv_long_press_desc) ?: return
@@ -409,6 +430,22 @@ class AiModelFragment : Fragment() {
                 .show()
         }
         btnEditCustomQuotes.setOnClickListener { showQuotesEditDialog() }
+
+        // ── 菜单大小调节 ──
+        val seekbarMenuSize = view?.findViewById<android.widget.SeekBar>(R.id.seekbar_menu_size) ?: return
+        val tvMenuSizeValue = view?.findViewById<TextView>(R.id.tv_menu_size_value) ?: return
+        val currentSize = AppPreferences.getBallMenuSizeDp(ctx)
+        seekbarMenuSize.progress = currentSize
+        tvMenuSizeValue.text = "${currentSize}dp"
+        seekbarMenuSize.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: android.widget.SeekBar, progress: Int, fromUser: Boolean) {
+                val dp = progress.coerceIn(28, 48)
+                tvMenuSizeValue.text = "${dp}dp"
+                if (fromUser) AppPreferences.setBallMenuSizeDp(ctx, dp)
+            }
+            override fun onStartTrackingTouch(sb: android.widget.SeekBar) {}
+            override fun onStopTrackingTouch(sb: android.widget.SeekBar) {}
+        })
 
         // 数据备份与管理按钮绑定
         val btnExport = view?.findViewById<android.view.View>(R.id.btn_export_data)
@@ -626,15 +663,71 @@ class AiModelFragment : Fragment() {
     }
 
     private fun getWrongQuestionsJson(context: android.content.Context): String {
-        return context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
+        val raw = context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
             .getString("wrong_questions_list", "[]") ?: "[]"
+        try {
+            val arr = org.json.JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val path = obj.optString("imagePath", "")
+                if (path.isNotEmpty()) {
+                    val file = java.io.File(path)
+                    if (file.exists()) {
+                        val bytes = file.readBytes()
+                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        obj.put("imageBase64", base64)
+                    }
+                }
+            }
+            return arr.toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return raw
+        }
     }
 
     private fun saveWrongQuestionsJson(context: android.content.Context, jsonStr: String) {
-        context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
-            .edit()
-            .putString("wrong_questions_list", jsonStr)
-            .apply()
+        try {
+            val arr = org.json.JSONArray(jsonStr)
+            val dir = java.io.File(context.filesDir, "wrong_questions")
+            if (!dir.exists()) dir.mkdirs()
+            
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id", "")
+                if (obj.has("imageBase64") && id.isNotEmpty()) {
+                    val base64Str = obj.getString("imageBase64")
+                    try {
+                        val bytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+                        val file = java.io.File(dir, "wq_$id.png")
+                        java.io.FileOutputStream(file).use { fos ->
+                            fos.write(bytes)
+                        }
+                        obj.put("imagePath", file.absolutePath)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    // 移除 base64 字段，防止 SharedPreferences 膨胀
+                    obj.remove("imageBase64")
+                } else if (id.isNotEmpty()) {
+                    // 即使没有带 base64 字段，也可以尝试校准本地路径以防止不同用户/包路径发生改变
+                    val file = java.io.File(dir, "wq_$id.png")
+                    if (file.exists()) {
+                        obj.put("imagePath", file.absolutePath)
+                    }
+                }
+            }
+            context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString("wrong_questions_list", arr.toString())
+                .apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            context.getSharedPreferences("wrong_questions_prefs", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString("wrong_questions_list", jsonStr)
+                .apply()
+        }
     }
 
     private fun performExport(uri: android.net.Uri) {
@@ -733,7 +826,9 @@ class AiModelFragment : Fragment() {
                         val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
                         qbCount = db.importQuestionsFromStream(ins)
                     }
-                    if (qbCount < 0) {
+                    if (qbCount >= 0) {
+                        com.example.aiassistant.questionbank.QuestionBankManager.init(ctx, force = true)
+                    } else {
                         val errMsg = when (qbCount) {
                             -4 -> "该文件是单分类专项题包，请使用上面的【导入题库数据】功能导入"
                             else -> "题库 JSON 语法格式不匹配"
@@ -769,6 +864,9 @@ class AiModelFragment : Fragment() {
                             val qbObj = root.getJSONObject("question_bank")
                             val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
                             qbCount = db.importQuestionsFromJson(qbObj.toString())
+                            if (qbCount > 0) {
+                                com.example.aiassistant.questionbank.QuestionBankManager.init(ctx, force = true)
+                            }
                         }
                     } else {
                         when (type) {
@@ -783,6 +881,9 @@ class AiModelFragment : Fragment() {
                             "question_bank" -> {
                                 val db = com.example.aiassistant.questionbank.QuestionBankDb(ctx)
                                 qbCount = db.importQuestionsFromJson(jsonStr)
+                                if (qbCount > 0) {
+                                    com.example.aiassistant.questionbank.QuestionBankManager.init(ctx, force = true)
+                                }
                             }
                             else -> {
                                 if (jsonStr.trim().startsWith("[")) {
@@ -911,7 +1012,7 @@ class AiModelFragment : Fragment() {
                 activity?.runOnUiThread {
                     dialog.dismiss()
                     if (count >= 0) {
-                        com.example.aiassistant.questionbank.QuestionBankManager.init(ctx)
+                        com.example.aiassistant.questionbank.QuestionBankManager.init(ctx, force = true)
 
                         AlertDialog.Builder(ctx)
                             .setTitle("导入成功")

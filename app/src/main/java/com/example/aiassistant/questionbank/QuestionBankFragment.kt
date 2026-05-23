@@ -55,8 +55,11 @@ class QuestionBankFragment : Fragment() {
             val totalQuestions = modules.sumOf { module ->
                 module.questionCount + module.children.sumOf { it.questionCount }
             }
+            val completedQuestions = modules.sumOf { module ->
+                module.completedCount + module.children.sumOf { it.completedCount }
+            }
             activity?.runOnUiThread {
-                tvTotalCount.text = "共 ${totalQuestions} 题"
+                tvTotalCount.text = "已做 $completedQuestions / 共 $totalQuestions 题"
                 rvModules.adapter = ModuleAdapter(modules) { module ->
                     showPracticeSettings(module)
                 }
@@ -101,7 +104,9 @@ class QuestionBankFragment : Fragment() {
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val module = modules[position]
             holder.tvModuleName.text = module.name
-            holder.tvQuestionCount.text = "${module.questionCount + module.children.sumOf { it.questionCount }} 题"
+            val totalCount = module.questionCount + module.children.sumOf { it.questionCount }
+            val completedCount = module.completedCount + module.children.sumOf { it.completedCount }
+            holder.tvQuestionCount.text = "已做 $completedCount / 共 $totalCount 题"
 
             // 根据数据状态同步 UI
             val isExpanded = expandedPositions.contains(position)
@@ -135,7 +140,7 @@ class QuestionBankFragment : Fragment() {
                     .inflate(R.layout.item_module_child, container, false)
 
                 childView.findViewById<TextView>(R.id.tv_child_name).text = child.name
-                childView.findViewById<TextView>(R.id.tv_child_count).text = "${child.questionCount} 题"
+                childView.findViewById<TextView>(R.id.tv_child_count).text = "已做 ${child.completedCount} / 共 ${child.questionCount} 题"
 
                 childView.setOnClickListener {
                     onChildClick(child)

@@ -1137,8 +1137,9 @@ fun ScreenCaptureService.showDictOcrResultCard(
 
             // 单个词条小卡片
             val itemLayout = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dpToPx(10), dpToPx(10), dpToPx(10), dpToPx(10))
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dpToPx(12), dpToPx(12), dpToPx(12), dpToPx(12))
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1146,7 +1147,7 @@ fun ScreenCaptureService.showDictOcrResultCard(
                 background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(0xFFFFFFFF.toInt()) // 纯白卡片底色
                     cornerRadius = dpToPx(12).toFloat()
-                    setStroke(dpToPx(1), 0xFFE0E0E0.toInt())
+                    setStroke(dpToPx(1), 0xFFE5E7EB.toInt())
                 }
                 isClickable = true
                 isFocusable = true
@@ -1157,20 +1158,21 @@ fun ScreenCaptureService.showDictOcrResultCard(
                 }
             }
 
-            // 第一行：标签 + 词语名
-            val firstLine = LinearLayout(context).apply {
+            // 左侧：标签 + 词语名
+            val leftContainer = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
             val tvTag = TextView(context).apply {
                 text = tagText
                 textSize = 9.5f
                 setTextColor(0xFFFFFFFF.toInt())
-                setPadding(dpToPx(5), dpToPx(2), dpToPx(5), dpToPx(2))
+                setPadding(dpToPx(6), dpToPx(2), dpToPx(6), dpToPx(2))
                 background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(tagColorBg)
-                    cornerRadius = dpToPx(4).toFloat()
+                    cornerRadius = dpToPx(6).toFloat()
                 }
             }
 
@@ -1178,42 +1180,31 @@ fun ScreenCaptureService.showDictOcrResultCard(
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { marginStart = dpToPx(6) }
+                ).apply { marginStart = dpToPx(8) }
                 text = wordName
                 textSize = 14f
                 setTextColor(0xFF222222.toInt())
                 setTypeface(null, Typeface.BOLD)
             }
 
-            val tvPinyin = TextView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { marginStart = dpToPx(8) }
-                text = if (pinyinText.isNotBlank()) "[$pinyinText]" else ""
+            leftContainer.addView(tvTag)
+            leftContainer.addView(tvWord)
+            itemLayout.addView(leftContainer)
+
+            // 右侧：交互按钮 "查看 ➔"
+            val tvAction = TextView(context).apply {
+                text = "查看 ➔"
                 textSize = 11f
-                setTextColor(0xFF666666.toInt())
+                setTextColor(0xFF5C8271.toInt()) // 抹茶绿配色
+                setTypeface(null, Typeface.BOLD)
+                setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xFFEDF4F0.toInt()) // 淡淡抹茶绿背景
+                    cornerRadius = dpToPx(6).toFloat()
+                }
             }
+            itemLayout.addView(tvAction)
 
-            firstLine.addView(tvTag)
-            firstLine.addView(tvWord)
-            firstLine.addView(tvPinyin)
-
-            // 第二行：简短释义
-            val tvExpl = TextView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = dpToPx(4) }
-                text = briefExpl.trim()
-                textSize = 11.5f
-                setTextColor(0xFF555555.toInt())
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            }
-
-            itemLayout.addView(firstLine)
-            itemLayout.addView(tvExpl)
             listContainer.addView(itemLayout)
         }
     }

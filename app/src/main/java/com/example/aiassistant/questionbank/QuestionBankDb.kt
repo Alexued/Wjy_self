@@ -14,7 +14,7 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
     companion object {
         private const val TAG = "QuestionBankDb"
         private const val DB_NAME = "question_bank_v2.db"
-        private const val DB_VERSION = 3
+        private const val DB_VERSION = 4
 
         const val T_MODULES = "modules"
         const val T_QUESTIONS = "questions"
@@ -119,12 +119,18 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
                 value TEXT
             )
         """)
+
+        // 已做题记录表
+        db.execSQL("CREATE TABLE IF NOT EXISTS completed_questions (question_id TEXT PRIMARY KEY, completed_at INTEGER)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 3) {
             // 添加 stem_html 列
             db.execSQL("ALTER TABLE $T_QUESTIONS ADD COLUMN stem_html TEXT DEFAULT ''")
+        }
+        if (oldVersion < 4) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS completed_questions (question_id TEXT PRIMARY KEY, completed_at INTEGER)")
         }
     }
 
@@ -303,8 +309,20 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
             }
         }
 
+        // 一次性查询所有模块已做题目的数量
+        val completedCountMap = mutableMapOf<String, Int>()
+        readableDatabase.rawQuery(
+            "SELECT q.module_id, COUNT(*) FROM $T_QUESTIONS q " +
+            "JOIN completed_questions c ON q.id = c.question_id GROUP BY q.module_id", null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                completedCountMap[cursor.getString(0)] = cursor.getInt(1)
+            }
+        }
+
         for (module in modules) {
             module.questionCount = countMap[module.id] ?: 0
+            module.completedCount = completedCountMap[module.id] ?: 0
         }
 
         // 构建树状结构
@@ -411,17 +429,73 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
 
     fun getQuestionsByRateRange(moduleId: String, rateMin: Int, rateMax: Int, limit: Int): List<Question> {
         val questions = mutableListOf<Question>()
+        
+        // 1. 尝试先获取未做过的题目
         readableDatabase.rawQuery(
             "SELECT q.id, q.stem, q.stem_html, q.options, q.answer, q.analysis, q.knowledge_point, q.source, q.rate, q.title_images, q.material_id, COALESCE(m.content, ''), q.difficulty " +
             "FROM $T_QUESTIONS q LEFT JOIN $T_MATERIALS m ON q.material_id = m.id " +
-            "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? ORDER BY RANDOM() LIMIT ?",
+            "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? " +
+            "AND q.id NOT IN (SELECT question_id FROM completed_questions) " +
+            "ORDER BY RANDOM() LIMIT ?",
             arrayOf(moduleId, rateMin.toString(), rateMax.toString(), limit.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 questions.add(cursorToQuestion(cursor))
             }
         }
+        
+        // 2. 如果未做过的题目不足，且该范围内所有题目均已做完，则自动重置已做记录并重新派送
+        if (questions.size < limit) {
+            val totalInModuleRange = getQuestionCountByRateRange(moduleId, rateMin, rateMax)
+            val completedInModuleRange = getCompletedQuestionCountByRateRange(moduleId, rateMin, rateMax)
+            
+            if (completedInModuleRange >= totalInModuleRange && totalInModuleRange > 0) {
+                // 该范围的所有题都做完了，重置它们以允许重新派送
+                resetCompletedQuestionsByRange(moduleId, rateMin, rateMax)
+                
+                // 再次尝试获取
+                val remainingLimit = limit - questions.size
+                readableDatabase.rawQuery(
+                    "SELECT q.id, q.stem, q.stem_html, q.options, q.answer, q.analysis, q.knowledge_point, q.source, q.rate, q.title_images, q.material_id, COALESCE(m.content, ''), q.difficulty " +
+                    "FROM $T_QUESTIONS q LEFT JOIN $T_MATERIALS m ON q.material_id = m.id " +
+                    "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? " +
+                    "ORDER BY RANDOM() LIMIT ?",
+                    arrayOf(moduleId, rateMin.toString(), rateMax.toString(), remainingLimit.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        questions.add(cursorToQuestion(cursor))
+                    }
+                }
+            }
+        }
         return questions
+    }
+
+    fun getCompletedQuestionCountByRateRange(moduleId: String, rateMin: Int, rateMax: Int): Int {
+        return readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM $T_QUESTIONS q " +
+            "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? " +
+            "AND q.id IN (SELECT question_id FROM completed_questions)",
+            arrayOf(moduleId, rateMin.toString(), rateMax.toString())
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
+    fun resetCompletedQuestionsByRange(moduleId: String, rateMin: Int, rateMax: Int) {
+        writableDatabase.execSQL(
+            "DELETE FROM completed_questions WHERE question_id IN (" +
+            "SELECT id FROM $T_QUESTIONS WHERE module_id = ? AND rate >= ? AND rate <= ?)",
+            arrayOf(moduleId, rateMin.toString(), rateMax.toString())
+        )
+    }
+
+    fun markQuestionCompleted(questionId: String) {
+        val values = ContentValues().apply {
+            put("question_id", questionId)
+            put("completed_at", System.currentTimeMillis())
+        }
+        writableDatabase.insertWithOnConflict("completed_questions", null, values, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
     fun getQuestionCountByRateRange(moduleId: String, rateMin: Int, rateMax: Int): Int {
@@ -790,6 +864,12 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
                     count++
                 }
             }
+            val meta = ContentValues().apply {
+                put("key", "imported")
+                put("value", "true")
+            }
+            db.insertWithOnConflict("meta", null, meta, SQLiteDatabase.CONFLICT_REPLACE)
+
             db.setTransactionSuccessful()
             result = count
         } catch (e: Exception) {
@@ -1098,6 +1178,12 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
                 reader.endArray()
             }
             
+            val meta = ContentValues().apply {
+                put("key", "imported")
+                put("value", "true")
+            }
+            db.insertWithOnConflict("meta", null, meta, SQLiteDatabase.CONFLICT_REPLACE)
+
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

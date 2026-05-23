@@ -25,9 +25,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.aiassistant.AppPreferences
+import com.example.aiassistant.ModelManager
 import com.example.aiassistant.OpenAIApiService
 import com.example.aiassistant.QuestionType
 import com.example.aiassistant.R
+import com.example.aiassistant.skills.ToolRegistry
 import com.google.android.material.checkbox.MaterialCheckBox
 import org.json.JSONArray
 import org.json.JSONObject
@@ -245,6 +247,7 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
         cb.setOnCheckedChangeListener(null)
         cb.isChecked = item.isSummarized
         cb.setOnCheckedChangeListener { _, isChecked ->
+            cachedItem = null
             WrongQuestionManager.updateWrongQuestion(this, item.id, isChecked, item.summary)
         }
     }
@@ -283,6 +286,7 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
             .setView(container)
             .setPositiveButton("保存") { _, _ ->
                 val note = et.text.toString().trim()
+                cachedItem = null
                 WrongQuestionManager.updateWrongQuestion(this, item.id, item.isSummarized, note)
                 loadDetail()
                 Toast.makeText(this, "总结已保存", Toast.LENGTH_SHORT).show()
@@ -335,38 +339,274 @@ class WrongQuestionDetailActivity : AppCompatActivity() {
         layoutAiLoading.visibility = View.VISIBLE
         layoutAiResult.removeAllViews()
 
-        // 获取AI配置
-        val baseUrl = AppPreferences.getApiBaseUrl(this)
-        val apiKey = AppPreferences.getApiKey(this)
-        val model = AppPreferences.getApiModel(this)
-        val prompt = AppPreferences.getPromptForType(this, questionType)
+        // 初始化模型管理器并获取当前活跃模型配置
+        ModelManager.init(this)
+        val activeModelId = AppPreferences.getActiveModelId(this)
+        val activeModel = ModelManager.get(activeModelId) ?: ModelManager.allModels.firstOrNull()
+
+        val baseUrl = activeModel?.baseUrl ?: AppPreferences.getApiBaseUrl(this)
+        val apiKey = activeModel?.apiKey ?: AppPreferences.getApiKey(this)
+        val model = activeModel?.model ?: AppPreferences.getApiModel(this)
+        val apiType = activeModel?.apiType ?: "openai"
+        val thinking = activeModel?.thinkingDefault ?: false
+        val thinkingBudget = activeModel?.thinkingBudget ?: 4096
+
+        val useTools = AppPreferences.isToolCallingEnabled(this) && ToolRegistry.hasTools()
+
+        var prompt = if (useTools) {
+            getUniversalAgentPrompt()
+        } else {
+            AppPreferences.getPromptForType(this, questionType)
+        }
+
+        // 如果错题来自于题库，则注入题库上下文以确保答案准确性
+        if (item.isFromBank) {
+            val bankContext = buildString {
+                appendLine("=== 题库已收录此题，以下为题库数据（正确答案已确定） ===")
+                appendLine()
+                appendLine("【题库题目】")
+                appendLine(item.bankStem)
+                appendLine()
+                if (item.bankOptions.isNotEmpty()) {
+                    appendLine("【题库选项】")
+                    for ((i, opt) in item.bankOptions.withIndex()) {
+                        appendLine("${'A' + i}. $opt")
+                    }
+                    appendLine()
+                }
+                appendLine("【题库正确答案】${item.bankAnswer}")
+                appendLine()
+                if (item.bankAnalysis.isNotBlank()) {
+                    appendLine("【题库参考解析】")
+                    appendLine(item.bankAnalysis)
+                    appendLine()
+                }
+                appendLine("=== 以上为题库数据，请以此为基础进行分析 ===")
+                appendLine("特别注意：")
+                appendLine("1. 正确答案已确定为 ${item.bankAnswer}，请围绕该答案展开分析，对每个选项逐一说明选或不选的理由。")
+                appendLine("2. 请在JSON中额外输出 keywords 数组，列出题目中的3-8个关键词/关键语句（用于在题目中标红高亮）。")
+                appendLine()
+            }
+            prompt = bankContext + prompt
+        }
 
         // 构建用户消息
         val userMessage = buildUserMessage(item)
 
-        // 调用AI
-        OpenAIApiService.analyzeText(
-            ocrText = userMessage,
-            baseUrl = baseUrl,
-            apiKey = apiKey,
-            model = model,
-            prompt = prompt,
-            userMessage = userMessage,
-            onComplete = { result ->
-                runOnUiThread {
-                    layoutAiLoading.visibility = View.GONE
-                    renderAiResult(result, questionType)
-                }
-            },
-            onError = { error ->
-                runOnUiThread {
-                    layoutAiLoading.visibility = View.GONE
-                    tvAiPlaceholder.visibility = View.VISIBLE
-                    btnStartAi.visibility = View.VISIBLE
-                    Toast.makeText(this, "AI解析失败: $error", Toast.LENGTH_LONG).show()
-                }
+        val onCompleteCallback = { result: String ->
+            runOnUiThread {
+                layoutAiLoading.visibility = View.GONE
+                renderAiResult(result, questionType)
             }
-        )
+        }
+
+        val onErrorCallback = { error: String ->
+            runOnUiThread {
+                layoutAiLoading.visibility = View.GONE
+                tvAiPlaceholder.visibility = View.VISIBLE
+                btnStartAi.visibility = View.VISIBLE
+                Toast.makeText(this, "AI解析失败: $error", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        if (useTools) {
+            val toolsArray = ToolRegistry.toOpenAiToolsArrayForType(questionType)
+            OpenAIApiService.analyzeWithTools(
+                context = this,
+                ocrText = userMessage,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                prompt = prompt,
+                thinking = thinking,
+                userMessage = userMessage,
+                apiType = apiType,
+                thinkingBudget = thinkingBudget,
+                tools = toolsArray,
+                onToolCall = { toolName ->
+                    android.util.Log.d("WrongQuestionAI", "AI 正在调用工具：$toolName")
+                },
+                onComplete = onCompleteCallback,
+                onError = onErrorCallback
+            )
+        } else {
+            OpenAIApiService.analyzeText(
+                ocrText = userMessage,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                model = model,
+                prompt = prompt,
+                thinking = thinking,
+                userMessage = userMessage,
+                apiType = apiType,
+                thinkingBudget = thinkingBudget,
+                onComplete = onCompleteCallback,
+                onError = onErrorCallback
+            )
+        }
+    }
+
+    private fun getUniversalAgentPrompt(): String {
+        return """
+            你是一个顶级公务员行测考试解题专家（智能助教）。
+            你的任务是对用户给出的行测题目（可能来自OCR识别，包含部分错别字或格式混乱）进行深度智能分析，并输出完美契合题型的结构化 JSON 解析。
+
+            【⚠️核心工作流指令（非常重要）】
+            为了保证解题的权威性和极致准确性，你被赋予了以下本地工具库进行「三层渐进式披露」加载：
+            1. `get_solving_skill(question_type, sub_type)`: 获取某大题型下细分子题型的核心解题方法、选择原则与避坑高频陷阱（第二层：按需加载方法论）。
+            2. `get_typical_special_rule(term)`: 获取各行测模块在高频专项考点、被定义概念、典型常识误区或公式上的标准解析要素与极限排除法则（第三层：按需加载特定考点深度细则）。
+
+            【📢前置环节说明】：
+            系统内置了题库前置检索环节。如果题目已被收录，系统会在本 Prompt 的头部以 `=== 题库已收录此题 ===` 块的形式自动注入经过人工校核 of 官方标准题干、选项、正确答案及官方解析。
+            如果存在前置题库数据，代表正确答案已确凿无疑，你必须以该标准题库数据为基准展开分析，且保证最终输出的 `correct_answer` 与题库给出的正确答案完全一致。
+
+            【执行步骤】：
+            第一步：分析用户提供的题目文本，提取核心题干，识别它属于行测五大模块中的哪个【大题型】。
+            第二步：【调用工具 - 第二层】—— 你必须首先调用 `get_solving_skill` 获取对应细分【小题型】的专属方法。
+            第三步：【调用工具 - 第三层】—— 若遇到以下高频特征考点，你必须紧接着调用 `get_typical_special_rule(term)` 调取专属避坑细则与公式手册（严防凭感觉做题）：
+                - 如果当前是「定义判断」题，且题干的被定义词属于高频典型词（如“体验式采访”、“隐性饥饿”、“无感审批”、“最大最小准则”等），调用 `get_typical_special_rule(term = "被定义词")`；
+                - 如果当前是「类比推理」题，且涉及“鳄鱼/鲸鱼等生物常识判断”（非种属误判）、“9大命名方式”、“物理与化学变化变化判定”或“并列之矛盾与反对区别”，调用 `get_typical_special_rule(term = "非种属误判" 或 "9大命名方式" 或 "物理变化与化学变化" 或 "并列之矛盾与反对")`；
+                - 如果当前是「逻辑判断」题，且考查“真假推理矛盾关系”或“翻译推理公式连锁推理”，调用 `get_typical_special_rule(term = "真假矛盾公式表" 或 "翻译推理公式秘籍")`；
+                - 如果当前是「逻辑填空」题，且考查“公文时政搭配特点”或“双刃剑/紧箍咒等比喻意境”，调用 `get_typical_special_rule(term = "黄金公文热词搭配" 或 "常考比喻与本体隐喻")`。
+            第四步：在工具返回你的专属技巧后，仔细阅读，将这些策略严密运用到题目解析中，对题目和每个选项进行极其专业的剖析。
+            Fifth步：根据题目的最终判定题型，输出对应的结构化 JSON，严禁掺杂 Markdown 代码块包裹以外的任何闲聊文字。
+
+            【输出 JSON 格式规范】
+            请根据你识别出的题目类别，严格输出以下 7 种 JSON 结构之一：
+
+            1. [片段阅读] 格式：
+            {
+              "question_type": "片段阅读",
+              "passage_type": "中心理解" | "细节判断" | "下文推断" | "标题拟定",
+              "structure_type": ["转折结构", "因果结构", "递进结构", "并列结构", "总分/分总结构"],
+              "question": "清洗后的干净题干",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "选项详细理由，指出如何对应原文的对策句或主题词"},
+                {"option": "B", "correct": false, "reason": "选项详细错误原因，标明是属于「细节非主旨/无中生有/偷换概念/偏离核心」中的哪种"}
+              ],
+              "logical_labels": [
+                {"label": "关联词/逻辑词", "reason": "该逻辑词在文段行文脉络中的具体承接/转折作用说明"}
+              ],
+              "analysis": "一句话核心秒杀解析",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            2. [逻辑填空] 格式（用 " ________ " 作为空格占位符）：
+            {
+              "question_type": "逻辑填空",
+              "skill_tags": ["词义辨析", "搭配用法", "成语填空"],
+              "question": "含有 ________ 的完整题干",
+              "core_meaning": "文段的核心主旨意思",
+              "breakthrough": "核心破题点（如解释性关系或反对关系线索）",
+              "correct_answer": "A",
+              "blanks_analysis": [
+                {
+                  "position": "空格1",
+                  "context_hint": "该空的语境线索或修饰关系",
+                  "answer": "正确填入的词",
+                  "summary": "该空的选择小结",
+                  "candidates": [
+                    {"word": "词语A", "correct": true, "dimension": "词义轻重/搭配对象", "reason": "正确理由"},
+                    {"word": "词语B", "correct": false, "dimension": "词义轻重/褒贬色彩", "reason": "排除理由"}
+                  ]
+                }
+              ],
+              "verification": "带回验证句意是否顺畅",
+              "accumulation": "本题相关的成语或核心实词积累",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            3. [语句表达] 格式：
+            {
+              "question_type": "语句表达",
+              "question_subtype": "语句填入题" | "语句排序题",
+              "question": "干净题干",
+              "correct_answer": "A",
+              "structure_analysis": "文段整体行文脉络与逻辑层级分析",
+              "key_clues": ["排序或填入的绝对捆绑线索1", "绝对捆绑线索2"],
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "正确理由"},
+                {"option": "B", "correct": false, "reason": "排除理由"}
+              ],
+              "pitfall": "容易被语感误导的经典易错点",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            4. [定义判断] 格式：
+            {
+              "question_type": "定义判断",
+              "ask_type": "属于" | "不属于",
+              "definition_text": "定义原文",
+              "key_elements": ["核心要素1(如主体)", "核心要素2(如手段)", "核心要素3(如结果)"],
+              "question": "题干设问和选项前情",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "完全契合所有关键定义要素的详细剖析"},
+                {"option": "B", "correct": false, "reason": "缺少哪项核心要素的详细说明"}
+              ],
+              "analysis": "一句话判定精要",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            5. [类比推理] 格式：
+            {
+              "question_type": "类比推理",
+              "word_pair": "题干词组(如：微风：狂风)",
+              "relationship_type": "核心关系(如：语义关系-程度递进)",
+              "relationship_analysis": "题干两个词的深层逻辑关系分析",
+              "sentence": "题干词组造句验证",
+              "technique": {
+                "level1": "一级逻辑关系",
+                "level2": "二级辨析关系",
+                "key_point": "区分干扰项 of 核判断点"
+              },
+              "options_table": [
+                {"option": "A. 词1：词2", "relationship": "选项关系", "match": true, "reason": "比对说明"},
+                {"option": "B. 词1：词2", "relationship": "选项关系", "match": false, "reason": "比对说明"}
+              ],
+              "secondary_analysis": "详细的一二级二级辨析对比过程",
+              "correct_answer": "A",
+              "pitfall": "经典易错方向陷阱",
+              "summary": "解此类题的核心总结",
+              "analysis": "秒杀解析",
+              "keywords": ["关键词1", "关键词2"]
+            }
+
+            6. [逻辑判断] 格式：
+            {
+              "question_type": "逻辑判断",
+              "reasoning_type": "论证削弱" | "论证加强" | "翻译推理" | "真假推理" | "分析推理",
+              "argument_structure": "论点与论据的推出式结构梳理",
+              "diagram_type": "逻辑图描述(可选)",
+              "logical_chain": [
+                {"step": 1, "premise": "前提/论据", "deduction": "具体推导/强化/削弱逻辑"}
+              ],
+              "question": "干净题干",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "如何起到最强加强/削弱/翻译契合作用"},
+                {"option": "B", "correct": false, "reason": "无关项/加强程度过弱/诉诸无知等排除原因"}
+              ],
+              "analysis": "核心推导小结",
+              "keywords": ["关键词1", "keywords2"]
+            }
+
+            7. [图形推理] 格式：
+            {
+              "question_type": "图形推理",
+              "pattern_type": "位置变化" | "样式变化" | "数量规律" | "属性规律" | "空间重构",
+              "rule_description": "图形整体核心变化规律精要描述",
+              "visual_analysis": "视觉细节剖析",
+              "correct_answer": "A",
+              "options_analysis": [
+                {"option": "A", "correct": true, "reason": "规律完全契合"},
+                {"option": "B", "correct": false, "reason": "不符合什么移动步长或翻转规律"}
+              ],
+              "analysis": "秒杀解析",
+              "keywords": ["关键词1", "关键词2"]
+            }
+        """.trimIndent()
     }
 
     private fun renderAiResult(result: String, questionType: QuestionType) {

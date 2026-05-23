@@ -107,7 +107,7 @@
                     android:id="@+id/tv_active_teacher_float"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="老师: 花生"
+                    android:text="老师: 番茄"
                     android:textSize="11sp"
                     android:textColor="@color/primary"
                     android:textStyle="bold" />

@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import org.json.JSONArray
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
@@ -13,20 +12,7 @@ object DictionaryManager {
     private const val TAG = "Dictionary"
     private const val MAX_RESULTS = 10
 
-    // ── 原始数据 ──────────────────────────────────────────────────
-    @Volatile private var idioms = mutableListOf<IdiomEntry>()
-    @Volatile private var words = mutableListOf<WordEntry>()
-    @Volatile private var ciList = mutableListOf<CiEntry>()
-    @Volatile private var xiehouyu = mutableListOf<XiehouyuEntry>()
-
-    // ── 索引 ──────────────────────────────────────────────────────────
-    private lateinit var ciCharIndex: HashMap<String, List<CiEntry>>
-    private lateinit var idiomCharIndex: HashMap<String, List<IdiomEntry>>
-    private lateinit var idiomPinyinIndex: HashMap<String, List<IdiomEntry>>
-    private lateinit var idiomAbbrIndex: HashMap<String, List<IdiomEntry>>
-    private lateinit var wordCharIndex: HashMap<String, List<WordEntry>>
-    private lateinit var wordPinyinIndex: HashMap<String, List<WordEntry>>
-    private lateinit var xiehouyuCharIndex: HashMap<String, List<XiehouyuEntry>>
+    @Volatile private var db: DictionaryDb? = null
 
     @Volatile var isLoaded = false; private set
     @Volatile var isLoading = false; private set
@@ -48,133 +34,32 @@ object DictionaryManager {
     }
 
     fun init(context: Context) {
-        if (isLoaded || isLoading) return
+        if (isLoaded || isLoading) {
+            if (isLoaded) {
+                synchronized(readyListeners) { readyListeners.forEach { it() } }
+            }
+            return
+        }
         isLoading = true
+        val appCtx = context.applicationContext
         loadExecutor.execute {
             try {
-                loadIdioms(context)
-                loadWords(context)
-                loadCi(context)
-                loadXiehouyu(context)
-                buildIndexes()
+                val dbHelper = DictionaryDb(appCtx)
+                db = dbHelper
+                if (!dbHelper.isImported()) {
+                    Log.i(TAG, "开始首次导入词典数据...")
+                    dbHelper.importFromAssets(appCtx)
+                }
                 isLoaded = true
-                Log.i(TAG, "词典加载完成: 成语${idioms.size}, 汉字${words.size}, 词语${ciList.size}, 歇后语${xiehouyu.size}")
+                Log.i(TAG, "词典初始化完成")
                 synchronized(readyListeners) { readyListeners.forEach { it() } }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "词典加载失败", e)
             } finally {
                 isLoading = false
             }
         }
     }
-
-    // ── 数据加载 ──────────────────────────────────────────────────
-
-    private fun loadIdioms(context: Context) {
-        context.assets.open("dictionary/idiom.json").bufferedReader().use { reader ->
-            val arr = JSONArray(reader.readText())
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                idioms.add(IdiomEntry(
-                    word = obj.optString("word", ""),
-                    pinyin = obj.optString("pinyin", ""),
-                    abbreviation = obj.optString("abbreviation", ""),
-                    explanation = obj.optString("explanation", ""),
-                    derivation = obj.optString("derivation", ""),
-                    example = obj.optString("example", "")
-                ))
-            }
-        }
-        System.gc()
-    }
-
-    private fun loadWords(context: Context) {
-        context.assets.open("dictionary/word.json").bufferedReader().use { reader ->
-            val arr = JSONArray(reader.readText())
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                words.add(WordEntry(
-                    word = obj.optString("word", ""),
-                    oldWord = obj.optString("oldword", ""),
-                    strokes = obj.optInt("strokes", 0),
-                    pinyin = obj.optString("pinyin", ""),
-                    radicals = obj.optString("radicals", ""),
-                    explanation = obj.optString("explanation", ""),
-                    more = obj.optString("more", "")
-                ))
-            }
-        }
-        System.gc()
-    }
-
-    private fun loadCi(context: Context) {
-        context.assets.open("dictionary/ci.json").bufferedReader().use { reader ->
-            val arr = JSONArray(reader.readText())
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                ciList.add(CiEntry(
-                    ci = obj.optString("ci", ""),
-                    explanation = obj.optString("explanation", "")
-                ))
-            }
-        }
-        System.gc()
-    }
-
-    private fun loadXiehouyu(context: Context) {
-        context.assets.open("dictionary/xiehouyu.json").bufferedReader().use { reader ->
-            val arr = JSONArray(reader.readText())
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                xiehouyu.add(XiehouyuEntry(
-                    riddle = obj.optString("riddle", ""),
-                    answer = obj.optString("answer", "")
-                ))
-            }
-        }
-    }
-
-    // ── 构建索引 ──────────────────────────────────────────────────
-
-    private fun buildIndexes() {
-        // 词语索引：按首字分组
-        ciCharIndex = ciList.groupBy { it.ci.first().toString() }
-            .mapValues { (_, v) -> v.sortedBy { it.ci.length } }
-            .toHashMap()
-
-        // 成语索引：按首字分组
-        idiomCharIndex = idioms.groupBy { it.word.first().toString() }
-            .mapValues { (_, v) -> v.sortedBy { it.word.length } }
-            .toHashMap()
-
-        // 成语拼音索引：key = 去空格小写拼音（如 "ābídìyù"），用于前缀匹配
-        idiomPinyinIndex = idioms.filter { it.pinyin.isNotBlank() }
-            .groupBy { it.pinyin.replace(" ", "").lowercase() }
-            .toHashMap()
-
-        // 成语缩写索引：key = 小写缩写（如 "abdy"），用于前缀匹配
-        idiomAbbrIndex = idioms.filter { it.abbreviation.isNotBlank() }
-            .groupBy { it.abbreviation.lowercase() }
-            .toHashMap()
-
-        // 汉字索引：按字本身分组
-        wordCharIndex = words.groupBy { it.word }
-            .toHashMap()
-
-        // 汉字拼音索引：key = 去空格小写拼音
-        wordPinyinIndex = words.filter { it.pinyin.isNotBlank() }
-            .groupBy { it.pinyin.replace(" ", "").lowercase() }
-            .toHashMap()
-
-        // 歇后语索引：按首字分组
-        xiehouyuCharIndex = xiehouyu.groupBy { it.riddle.first().toString() }
-            .mapValues { (_, v) -> v.sortedBy { it.riddle.length } }
-            .toHashMap()
-
-        Log.i(TAG, "索引构建完成")
-    }
-
-    private fun <K, V> Map<K, V>.toHashMap(): HashMap<K, V> = HashMap(this)
 
     // ── 异步搜索（后台线程执行，结果回调到主线程） ────────────────
 
@@ -215,103 +100,157 @@ object DictionaryManager {
     }
 
     /**
-     * 核心搜索逻辑：基于索引的 O(1) 查找。
+     * 核心搜索逻辑：基于 SQLite 数据库进行模糊匹配查询。
      */
     private fun searchInternal(q: String): DictionaryResult {
+        val dbHelper = db ?: return DictionaryResult.EMPTY
+        val database = dbHelper.readableDatabase
+
         val isChinese = q.first().code > 127
+        val resultItems = mutableListOf<DictItem>()
 
-        if (isChinese) {
-            return searchChinese(q)
-        } else {
-            return searchPinyin(q)
+        try {
+            if (isChinese) {
+                // 1. 查汉字
+                database.rawQuery(
+                    "SELECT word, old_word, strokes, pinyin, radicals, explanation, more FROM ${DictionaryDb.T_WORDS} WHERE word LIKE ? LIMIT ?",
+                    arrayOf("$q%", MAX_RESULTS.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        resultItems.add(DictItem.WordItem(WordEntry(
+                            word = cursor.getString(0),
+                            oldWord = cursor.getString(1),
+                            strokes = cursor.getInt(2),
+                            pinyin = cursor.getString(3),
+                            radicals = cursor.getString(4),
+                            explanation = cursor.getString(5),
+                            more = cursor.getString(6)
+                        )))
+                    }
+                }
+
+                // 2. 查词语
+                database.rawQuery(
+                    "SELECT ci, explanation FROM ${DictionaryDb.T_CI} WHERE ci LIKE ? LIMIT ?",
+                    arrayOf("$q%", MAX_RESULTS.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        resultItems.add(DictItem.CiItem(CiEntry(
+                            ci = cursor.getString(0),
+                            explanation = cursor.getString(1)
+                        )))
+                    }
+                }
+
+                // 3. 查成语
+                database.rawQuery(
+                    "SELECT word, pinyin, abbreviation, explanation, derivation, example FROM ${DictionaryDb.T_IDIOMS} WHERE word LIKE ? LIMIT ?",
+                    arrayOf("$q%", MAX_RESULTS.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        resultItems.add(DictItem.IdiomItem(IdiomEntry(
+                            word = cursor.getString(0),
+                            pinyin = cursor.getString(1),
+                            abbreviation = cursor.getString(2),
+                            explanation = cursor.getString(3),
+                            derivation = cursor.getString(4),
+                            example = cursor.getString(5)
+                        )))
+                    }
+                }
+
+                // 4. 查歇后语
+                database.rawQuery(
+                    "SELECT riddle, answer FROM ${DictionaryDb.T_XIEHOUYU} WHERE riddle LIKE ? LIMIT ?",
+                    arrayOf("$q%", MAX_RESULTS.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        resultItems.add(DictItem.XiehouyuItem(XiehouyuEntry(
+                            riddle = cursor.getString(0),
+                            answer = cursor.getString(1)
+                        )))
+                    }
+                }
+            } else {
+                // 拼音/缩写搜索
+                val qLower = q.lowercase()
+
+                // 1. 查成语（缩写或拼音前缀）
+                database.rawQuery(
+                    "SELECT word, pinyin, abbreviation, explanation, derivation, example FROM ${DictionaryDb.T_IDIOMS} WHERE abbreviation LIKE ? OR replace(pinyin, ' ', '') LIKE ? LIMIT ?",
+                    arrayOf("$qLower%", "$qLower%", MAX_RESULTS.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        resultItems.add(DictItem.IdiomItem(IdiomEntry(
+                            word = cursor.getString(0),
+                            pinyin = cursor.getString(1),
+                            abbreviation = cursor.getString(2),
+                            explanation = cursor.getString(3),
+                            derivation = cursor.getString(4),
+                            example = cursor.getString(5)
+                        )))
+                    }
+                }
+
+                // 2. 查汉字（拼音前缀）
+                database.rawQuery(
+                    "SELECT word, old_word, strokes, pinyin, radicals, explanation, more FROM ${DictionaryDb.T_WORDS} WHERE replace(pinyin, ' ', '') LIKE ? LIMIT ?",
+                    arrayOf("$qLower%", MAX_RESULTS.toString())
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        resultItems.add(DictItem.WordItem(WordEntry(
+                            word = cursor.getString(0),
+                            oldWord = cursor.getString(1),
+                            strokes = cursor.getInt(2),
+                            pinyin = cursor.getString(3),
+                            radicals = cursor.getString(4),
+                            explanation = cursor.getString(5),
+                            more = cursor.getString(6)
+                        )))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Search error", e)
         }
-    }
 
-    /** 中文查询：按首字索引查找，再过滤前缀 */
-    private fun searchChinese(q: String): DictionaryResult {
-        val firstChar = q.first().toString()
-
-        val ciResults = ciCharIndex[firstChar]
-            ?.filter { it.ci.startsWith(q) }
-            ?.take(MAX_RESULTS)
-            ?: emptyList()
-
-        val idiomResults = idiomCharIndex[firstChar]
-            ?.filter { it.word.startsWith(q) }
-            ?.take(MAX_RESULTS)
-            ?: emptyList()
-
-        val wordResults = wordCharIndex[firstChar]
-            ?.filter { it.word.startsWith(q) }
-            ?.take(MAX_RESULTS)
-            ?: emptyList()
-
-        val xieResults = xiehouyuCharIndex[firstChar]
-            ?.filter { it.riddle.startsWith(q) }
-            ?.take(MAX_RESULTS)
-            ?: emptyList()
-
-        val sorted = sortWithWeight(q.length, idiomResults, wordResults, ciResults, xieResults)
+        // 根据长度和类型进行排序和权重调整
+        val sorted = sortResultWithWeight(q.length, resultItems)
         return DictionaryResult(query = q, items = sorted)
     }
 
-    /** 拼音查询：前缀扫描拼音/缩写索引 */
-    private fun searchPinyin(q: String): DictionaryResult {
-        val qLower = q.lowercase()
+    private fun sortResultWithWeight(len: Int, items: List<DictItem>): List<DictItem> {
+        val words = items.filterIsInstance<DictItem.WordItem>()
+        val ci = items.filterIsInstance<DictItem.CiItem>()
+        val idioms = items.filterIsInstance<DictItem.IdiomItem>()
+        val xiehouyu = items.filterIsInstance<DictItem.XiehouyuItem>()
 
-        // 成语：拼音前缀匹配（索引 key = 去空格小写拼音）
-        val idiomByPinyin = idiomPinyinIndex.entries
-            .filter { it.key.startsWith(qLower) }
-            .flatMap { it.value }
-            .take(MAX_RESULTS)
-
-        // 成语：缩写前缀匹配（索引 key = 小写缩写）
-        val idiomByAbbr = idiomAbbrIndex.entries
-            .filter { it.key.startsWith(qLower) }
-            .flatMap { it.value }
-            .take(MAX_RESULTS)
-
-        // 合并去重
-        val allIdioms = (idiomByPinyin + idiomByAbbr).distinctBy { it.word }.take(MAX_RESULTS)
-
-        // 汉字：拼音前缀匹配
-        val wordByPinyin = wordPinyinIndex.entries
-            .filter { it.key.startsWith(qLower) }
-            .flatMap { it.value }
-            .take(MAX_RESULTS)
-
-        // 词语和歇后语没有拼音字段，拼音查询不参与
-        val sorted = sortWithWeight(q.length, allIdioms, wordByPinyin, emptyList(), emptyList())
-        return DictionaryResult(query = q, items = sorted)
-    }
-
-    private fun sortWithWeight(
-        len: Int,
-        idioms: List<IdiomEntry>,
-        words: List<WordEntry>,
-        ci: List<CiEntry>,
-        xiehouyu: List<XiehouyuEntry>
-    ): List<DictItem> {
         val result = mutableListOf<DictItem>()
-
         if (len == 1) {
-            words.forEach { result.add(DictItem.WordItem(it)) }
-            ci.forEach { result.add(DictItem.CiItem(it)) }
-            idioms.forEach { result.add(DictItem.IdiomItem(it)) }
-            xiehouyu.forEach { result.add(DictItem.XiehouyuItem(it)) }
+            result.addAll(words)
+            result.addAll(ci)
+            result.addAll(idioms)
+            result.addAll(xiehouyu)
         } else if (len <= 3) {
-            ci.forEach { result.add(DictItem.CiItem(it)) }
-            idioms.forEach { result.add(DictItem.IdiomItem(it)) }
-            xiehouyu.forEach { result.add(DictItem.XiehouyuItem(it)) }
-            words.forEach { result.add(DictItem.WordItem(it)) }
+            result.addAll(ci)
+            result.addAll(idioms)
+            result.addAll(xiehouyu)
+            result.addAll(words)
         } else {
-            idioms.forEach { result.add(DictItem.IdiomItem(it)) }
-            xiehouyu.forEach { result.add(DictItem.XiehouyuItem(it)) }
-            ci.forEach { result.add(DictItem.CiItem(it)) }
-            words.forEach { result.add(DictItem.WordItem(it)) }
+            result.addAll(idioms)
+            result.addAll(xiehouyu)
+            result.addAll(ci)
+            result.addAll(words)
         }
 
-        return result.take(MAX_RESULTS)
+        return result.distinctBy {
+            when (it) {
+                is DictItem.IdiomItem -> "idiom_${it.data.word}"
+                is DictItem.WordItem -> "word_${it.data.word}"
+                is DictItem.CiItem -> "ci_${it.data.ci}"
+                is DictItem.XiehouyuItem -> "xie_${it.data.riddle}"
+            }
+        }.take(MAX_RESULTS)
     }
 }
 

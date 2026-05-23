@@ -2,26 +2,56 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- 左上角 -->
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- 1. 精密复制：三个漂浮的微光小圆点 -->
+    <!-- 左上方点 (较大，较清晰) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M3,3v5h2V5h3V3H3z" />
-    <!-- 右上角 -->
+        android:fillAlpha="0.36"
+        android:pathData="M 36, 34.5 a 3.5,3.5 0 1,1 0,7 a 3.5,3.5 0 1,1 0,-7" />
+    <!-- 右侧点 (较小，较暗) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M21,3h-5v2h3v3h2V3z" />
-    <!-- 左下角 -->
+        android:fillAlpha="0.18"
+        android:pathData="M 65, 42.5 a 2.0,2.0 0 1,1 0,4 a 2.0,2.0 0 1,1 0,-4" />
+    <!-- 下方点 (中等，中等亮度) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M3,21h5v-2H5v-3H3V21z" />
-    <!-- 右下角 -->
+        android:fillAlpha="0.25"
+        android:pathData="M 42, 62.5 a 2.5,2.5 0 1,1 0,5 a 2.5,2.5 0 1,1 0,-5" />
+
+    <!-- 2. 精密复制：中心星芒/十字环 (极简高端禅风) -->
+    <!-- 中心空心圆环 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M21,21v-5h-2v3h-3v2H21z" />
-    <!-- 中心圆 -->
+        android:strokeWidth="3.2"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000"
+        android:pathData="M 50, 46 a 4,4 0 1,1 0,8 a 4,4 0 1,1 0,-8" />
+    <!-- 上方粗端延伸臂 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,12m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0" />
+        android:strokeWidth="3.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:pathData="M 50,43.5 L 50,31" />
+    <!-- 下方粗端延伸臂 -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:pathData="M 50,56.5 L 50,69" />
+    <!-- 左侧粗端延伸臂 -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:pathData="M 43.5,50 L 31,50" />
+    <!-- 右侧粗端延伸臂 -->
+    <path
+        android:strokeWidth="3.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round"
+        android:pathData="M 56.5,50 L 69,50" />
+
 </vector>

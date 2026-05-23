@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
-    <solid android:color="#80000000" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 1. 精密复制：暖木雅致灰褐底色 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#D0C4BEB4" />
+        </shape>
+    </item>
+    <!-- 2. 精密复制：内圈细密微光虚线圈 -->
+    <item
+        android:left="6dp"
+        android:top="6dp"
+        android:right="6dp"
+        android:bottom="6dp">
+        <shape android:shape="oval">
+            <stroke
+                android:width="1.0dp"
+                android:color="#80FFFFFF"
+                android:dashWidth="1.5dp"
+                android:dashGap="2.5dp" />
+        </shape>
+    </item>
+</layer-list>

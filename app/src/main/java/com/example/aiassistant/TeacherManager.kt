@@ -18,7 +18,7 @@ object TeacherManager {
     private val builtIn = mutableListOf<TeacherConfig>()
     private val imported = mutableListOf<TeacherConfig>()
 
-    /** 当前生效的老师（fallback：花生） */
+    /** 当前生效的老师（fallback：番茄） */
     @Volatile var activeTeacher: TeacherConfig = createFallbackTeacher()
         private set
 

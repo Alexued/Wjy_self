@@ -49,12 +49,12 @@ class FloatBallTileService : TileService() {
                     @Suppress("DEPRECATION")
                     startActivityAndCollapse(intent)
                 }
-                Toast.makeText(this, "需要授予悬浮窗权限才能开启悬浮球", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "需要授予悬浮窗权限才能开启陪陪刷", Toast.LENGTH_LONG).show()
             } else {
                 android.util.Log.d("FloatBallTile", "onClick: Has overlay permission, launching MediaProjectionConsentActivity transparently...")
                 // 已有悬浮窗权限，跳转到透明中转 Activity 自动原地触发授权与开启流程
                 val intent = Intent(this, MediaProjectionConsentActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -84,7 +84,7 @@ class FloatBallTileService : TileService() {
         stopService(serviceIntent)
         AppPreferences.setFloatEnabled(this, false)
         updateTileState()
-        Toast.makeText(this, "悬浮球已关闭", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "陪陪刷已关闭", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateTileState() {
@@ -92,13 +92,13 @@ class FloatBallTileService : TileService() {
         val running = isServiceRunning()
         if (running) {
             tile.state = Tile.STATE_ACTIVE
-            tile.label = "悬浮球: 开启"
+            tile.label = "陪陪刷: 开启"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 tile.subtitle = "已运行"
             }
         } else {
             tile.state = Tile.STATE_INACTIVE
-            tile.label = "悬浮球: 关闭"
+            tile.label = "陪陪刷: 关闭"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 tile.subtitle = "未开启"
             }

@@ -1,6 +1,6 @@
 {
-  "id": "huasheng",
-  "name": "花生老师",
+  "id": "fanqie",
+  "name": "番茄老师",
   "description": "公务员考试行测题目解析专家，擅长结构化分析、选项排雷、逻辑拆解。每种题型输出规范JSON，前端卡片结构化渲染。",
   "version": 1,
   "prompts": {

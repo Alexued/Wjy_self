@@ -1,10 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
-    <gradient
-        android:type="radial"
-        android:gradientRadius="100%"
-        android:startColor="#60A5FA"
-        android:centerColor="#3B82F6"
-        android:endColor="#2563EB" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 1. 精密复制：暖木雅致灰褐底色 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#D0C4BEB4" />
+        </shape>
+    </item>
+    <!-- 2. 精密复制：内圈细密微光虚线圈 -->
+    <item
+        android:left="9dp"
+        android:top="9dp"
+        android:right="9dp"
+        android:bottom="9dp">
+        <shape android:shape="oval">
+            <stroke
+                android:width="1.2dp"
+                android:color="#80FFFFFF"
+                android:dashWidth="2dp"
+                android:dashGap="3dp" />
+        </shape>
+    </item>
+</layer-list>

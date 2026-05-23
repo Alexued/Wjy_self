@@ -46,9 +46,9 @@ class HomeFragment : Fragment() {
 
     private lateinit var tvWrongStats: TextView
     private lateinit var btnWrongQuestions: View
-    private lateinit var rgFloatAction: android.widget.RadioGroup
-    private lateinit var rbActionAi: android.widget.RadioButton
-    private lateinit var rbActionRecord: android.widget.RadioButton
+    private lateinit var cardWrongQuestions: com.google.android.material.card.MaterialCardView
+    private lateinit var btnActionAi: TextView
+    private lateinit var btnActionRecord: TextView
 
     private var layoutBrandHeader: View? = null
     private var tvSubtitle: TextView? = null
@@ -101,6 +101,9 @@ class HomeFragment : Fragment() {
         QuestionBankManager.addOnReadyListener(bankReadyListener)
         loadModules()
         updateWrongStats()
+
+        val action = AppPreferences.getFloatClickAction(requireContext())
+        updateSegmentedButtons(action)
     }
 
     override fun onPause() {
@@ -140,9 +143,9 @@ class HomeFragment : Fragment() {
 
         tvWrongStats = view.findViewById(R.id.tv_wrong_stats)
         btnWrongQuestions = view.findViewById(R.id.btn_wrong_questions)
-        rgFloatAction = view.findViewById(R.id.rg_float_action)
-        rbActionAi = view.findViewById(R.id.rb_action_ai)
-        rbActionRecord = view.findViewById(R.id.rb_action_record)
+        cardWrongQuestions = view.findViewById(R.id.card_wrong_questions)
+        btnActionAi = view.findViewById(R.id.btn_action_ai)
+        btnActionRecord = view.findViewById(R.id.btn_action_record)
     }
 
     private fun loadConfig() {
@@ -155,11 +158,7 @@ class HomeFragment : Fragment() {
         updateWrongStats()
 
         val action = AppPreferences.getFloatClickAction(ctx)
-        if (action == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
-            rbActionRecord.isChecked = true
-        } else {
-            rbActionAi.isChecked = true
-        }
+        updateSegmentedButtons(action)
 
         switchKeepScreenOn.isChecked = AppPreferences.isKeepScreenOnEnabled(ctx)
     }
@@ -188,13 +187,14 @@ class HomeFragment : Fragment() {
             startActivity(intent)
         }
 
-        rgFloatAction.setOnCheckedChangeListener { _, checkedId ->
-            val act = if (checkedId == R.id.rb_action_record) {
-                AppPreferences.CLICK_ACTION_RECORD_WRONG
-            } else {
-                AppPreferences.CLICK_ACTION_AI_ANALYZE
-            }
-            AppPreferences.setFloatClickAction(ctx, act)
+        btnActionAi.setOnClickListener {
+            AppPreferences.setFloatClickAction(ctx, AppPreferences.CLICK_ACTION_AI_ANALYZE)
+            updateSegmentedButtons(AppPreferences.CLICK_ACTION_AI_ANALYZE)
+        }
+
+        btnActionRecord.setOnClickListener {
+            AppPreferences.setFloatClickAction(ctx, AppPreferences.CLICK_ACTION_RECORD_WRONG)
+            updateSegmentedButtons(AppPreferences.CLICK_ACTION_RECORD_WRONG)
         }
 
         switchKeepScreenOn.setOnCheckedChangeListener { _, isChecked ->
@@ -264,9 +264,12 @@ class HomeFragment : Fragment() {
             val totalQuestions = modules.sumOf { module ->
                 module.questionCount + module.children.sumOf { it.questionCount }
             }
+            val completedQuestions = modules.sumOf { module ->
+                module.completedCount + module.children.sumOf { it.completedCount }
+            }
             activity?.runOnUiThread {
                 if (!isAdded) return@runOnUiThread
-                tvTotalCount.text = "共 ${totalQuestions} 题"
+                tvTotalCount.text = "已做 $completedQuestions / 共 $totalQuestions 题"
                 rvModules.adapter = ModuleAdapter(modules) { module ->
                     showPracticeSettings(module)
                 }
@@ -311,7 +314,9 @@ class HomeFragment : Fragment() {
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val module = modules[position]
             holder.tvModuleName.text = module.name
-            holder.tvQuestionCount.text = "${module.questionCount + module.children.sumOf { it.questionCount }} 题"
+            val totalCount = module.questionCount + module.children.sumOf { it.questionCount }
+            val completedCount = module.completedCount + module.children.sumOf { it.completedCount }
+            holder.tvQuestionCount.text = "已做 $completedCount / 共 $totalCount 题"
 
             // 根据数据状态同步 UI
             val isExpanded = expandedPositions.contains(position)
@@ -345,7 +350,7 @@ class HomeFragment : Fragment() {
                     .inflate(R.layout.item_module_child, container, false)
 
                 childView.findViewById<TextView>(R.id.tv_child_name).text = child.name
-                childView.findViewById<TextView>(R.id.tv_child_count).text = "${child.questionCount} 题"
+                childView.findViewById<TextView>(R.id.tv_child_count).text = "已做 ${child.completedCount} / 共 ${child.questionCount} 题"
 
                 childView.setOnClickListener {
                     onChildClick(child)
@@ -486,6 +491,27 @@ class HomeFragment : Fragment() {
                 .setStartDelay(i * 80L)
                 .setInterpolator(android.view.animation.DecelerateInterpolator())
                 .start()
+        }
+    }
+
+    private fun updateSegmentedButtons(action: Int) {
+        val ctx = context ?: return
+        if (action == AppPreferences.CLICK_ACTION_RECORD_WRONG) {
+            btnActionRecord.setBackgroundResource(R.drawable.bg_segmented_active_terracotta)
+            btnActionRecord.setTextColor(resources.getColor(R.color.white, null))
+            btnActionAi.setBackgroundResource(R.drawable.bg_segmented_inactive)
+            btnActionAi.setTextColor(resources.getColor(R.color.text_secondary, null))
+
+            cardWrongQuestions.setCardBackgroundColor(resources.getColor(R.color.incorrect_red_bg, null))
+            cardWrongQuestions.setStrokeColor(android.content.res.ColorStateList.valueOf(resources.getColor(R.color.incorrect_red_border, null)))
+        } else {
+            btnActionAi.setBackgroundResource(R.drawable.bg_segmented_active_matcha)
+            btnActionAi.setTextColor(resources.getColor(R.color.white, null))
+            btnActionRecord.setBackgroundResource(R.drawable.bg_segmented_inactive)
+            btnActionRecord.setTextColor(resources.getColor(R.color.text_secondary, null))
+
+            cardWrongQuestions.setCardBackgroundColor(resources.getColor(R.color.correct_green_bg, null))
+            cardWrongQuestions.setStrokeColor(android.content.res.ColorStateList.valueOf(resources.getColor(R.color.correct_green_border, null)))
         }
     }
 }

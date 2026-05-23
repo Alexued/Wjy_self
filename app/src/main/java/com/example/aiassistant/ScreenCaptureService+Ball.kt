@@ -360,6 +360,9 @@ internal fun ScreenCaptureService.showBallMenu() {
 
     val menuView = LayoutInflater.from(this).inflate(R.layout.layout_ball_menu, null)
 
+    // 根据用户配置的菜单尺寸调整大小
+    applyBallMenuSize(menuView)
+
     // 先以临时参数添加到窗口，测量实际宽度
     val tempParams = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT,
@@ -392,15 +395,22 @@ internal fun ScreenCaptureService.showBallMenu() {
 
     val dictItem = menuView.findViewById<View>(R.id.menu_dict)
     val captureItem = menuView.findViewById<View>(R.id.menu_capture_mode)
+    val clickActionItem = menuView.findViewById<View>(R.id.menu_click_action)
     val closeItem = menuView.findViewById<View>(R.id.menu_close_ball)
+    
     val divider1 = menuView.findViewById<View>(R.id.menu_divider_1)
     val divider2 = menuView.findViewById<View>(R.id.menu_divider_2)
+    val divider3 = menuView.findViewById<View>(R.id.menu_divider_3)
 
     dictItem.visibility = if (enabledItems.contains("dict")) View.VISIBLE else View.GONE
-    divider1.visibility = if (enabledItems.contains("dict") && enabledItems.any { it != "dict" }) View.VISIBLE else View.GONE
     captureItem.visibility = if (enabledItems.contains("capture_mode")) View.VISIBLE else View.GONE
-    divider2.visibility = if (enabledItems.contains("capture_mode") && enabledItems.contains("close")) View.VISIBLE else View.GONE
+    clickActionItem.visibility = if (enabledItems.contains("click_action")) View.VISIBLE else View.GONE
     closeItem.visibility = if (enabledItems.contains("close")) View.VISIBLE else View.GONE
+
+    // 智能连贯的分隔符控制
+    divider1.visibility = if (dictItem.visibility == View.VISIBLE && (captureItem.visibility == View.VISIBLE || clickActionItem.visibility == View.VISIBLE || closeItem.visibility == View.VISIBLE)) View.VISIBLE else View.GONE
+    divider2.visibility = if (captureItem.visibility == View.VISIBLE && (clickActionItem.visibility == View.VISIBLE || closeItem.visibility == View.VISIBLE)) View.VISIBLE else View.GONE
+    divider3.visibility = if (clickActionItem.visibility == View.VISIBLE && closeItem.visibility == View.VISIBLE) View.VISIBLE else View.GONE
 
     // 获取新增的名师菜单项
     val teacherItem = menuView.findViewById<TextView>(R.id.menu_switch_teacher)
@@ -417,7 +427,8 @@ internal fun ScreenCaptureService.showBallMenu() {
 
     dictItem.setOnClickListener {
         dismissBallMenu()
-        showDictionaryOverlay()
+        ScreenCaptureService.isDictOcrMode = true
+        onFloatBallClicked()
     }
 
     captureItem.setOnClickListener {
@@ -427,6 +438,15 @@ internal fun ScreenCaptureService.showBallMenu() {
         AppPreferences.setCaptureMode(this, newMode)
         val modeName = if (newMode == AppPreferences.MODE_FIXED_AREA) "固定区域" else "自定义区域"
         Toast.makeText(this, "已切换为：$modeName 截图", Toast.LENGTH_SHORT).show()
+    }
+
+    clickActionItem.setOnClickListener {
+        dismissBallMenu()
+        val currentAction = AppPreferences.getFloatClickAction(this)
+        val newAction = if (currentAction == AppPreferences.CLICK_ACTION_RECORD_WRONG) AppPreferences.CLICK_ACTION_AI_ANALYZE else AppPreferences.CLICK_ACTION_RECORD_WRONG
+        AppPreferences.setFloatClickAction(this, newAction)
+        val actionName = if (newAction == AppPreferences.CLICK_ACTION_RECORD_WRONG) "仅记录错题" else "AI 智能分析"
+        Toast.makeText(this, "单击动作已切换为：$actionName", Toast.LENGTH_SHORT).show()
     }
 
     closeItem.setOnClickListener {
@@ -451,6 +471,31 @@ internal fun ScreenCaptureService.dismissBallMenu() {
     ballMenuView?.let {
         try { windowManager.removeView(it) } catch (_: Exception) {}
         ballMenuView = null
+    }
+}
+
+/** 根据用户配置的菜单尺寸调整菜单项大小 */
+private fun ScreenCaptureService.applyBallMenuSize(menuView: View) {
+    val itemHeightDp = AppPreferences.getBallMenuSizeDp(this)
+    // 按比例缩放其他尺寸
+    val scale = itemHeightDp / 36f
+    val textSize = (12.5f * scale).coerceIn(10f, 16f)
+    val paddingH = (12 * scale).toInt().coerceIn(6, 20)
+    val paddingV = (2 * scale).toInt().coerceIn(1, 6)
+    val iconPadding = (8 * scale).toInt().coerceIn(4, 14)
+    val headerSize = (9f * scale).coerceIn(7f, 12f)
+
+    val itemIds = listOf(R.id.menu_dict, R.id.menu_capture_mode, R.id.menu_click_action, R.id.menu_switch_teacher, R.id.menu_close_ball)
+    for (id in itemIds) {
+        menuView.findViewById<TextView>(id)?.let { tv ->
+            tv.layoutParams.height = dpToPx(itemHeightDp)
+            tv.textSize = textSize
+            tv.setPadding(dpToPx(paddingH), dpToPx(paddingV), dpToPx(paddingH), dpToPx(paddingV))
+            tv.compoundDrawablePadding = dpToPx(iconPadding)
+        }
+    }
+    (menuView as? android.view.ViewGroup)?.getChildAt(0)?.let { header ->
+        (header as? TextView)?.textSize = headerSize
     }
 }
 

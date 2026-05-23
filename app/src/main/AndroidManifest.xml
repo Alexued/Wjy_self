@@ -121,7 +121,9 @@
             android:exported="false"
             android:theme="@style/Theme.Transparent"
             android:excludeFromRecents="true"
-            android:noHistory="true" />
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance" />
 
         <!-- 录屏 + 悬浮球前台服务 -->
         <service
@@ -133,7 +135,7 @@
         <service
             android:name=".FloatBallTileService"
             android:icon="@drawable/ic_ai_ball"
-            android:label="悬浮球"
+            android:label="陪陪刷"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>
