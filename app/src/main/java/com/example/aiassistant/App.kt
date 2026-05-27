@@ -24,6 +24,13 @@ class App : Application() {
             android.util.Log.e("App", "Failed to set OpenMP env vars: ${e.message}")
         }
 
+        // 应用启动即初始化题库，首页进入“静心研习”时可立即刷新显示
+        try {
+            com.example.aiassistant.questionbank.QuestionBankManager.init(this)
+        } catch (e: Exception) {
+            android.util.Log.e("App", "Failed to init QuestionBankManager: ${e.message}")
+        }
+
         // 初始化 Skills 工具注册
         try {
             com.example.aiassistant.skills.BuiltInTools.registerAll()

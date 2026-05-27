@@ -44,7 +44,14 @@ internal fun ScreenCaptureService.showFloatBall() {
 
     floatBallView = LayoutInflater.from(this).inflate(R.layout.layout_float_ball, null)
     setupFloatBallTouch(floatBallView!!)
-    windowManager.addView(floatBallView, floatBallParams)
+    try {
+        windowManager.addView(floatBallView, floatBallParams)
+    } catch (e: Exception) {
+        Log.e(ScreenCaptureService.TAG, "showFloatBall addView failed", e)
+        floatBallView = null
+        Toast.makeText(this, "悬浮窗创建失败，请确认已授予悬浮窗权限", Toast.LENGTH_LONG).show()
+        stopSelf()
+    }
 }
 
 /** 动态更新悬浮窗常亮状态 */

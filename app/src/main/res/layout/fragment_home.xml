@@ -370,6 +370,16 @@
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:textColor="@color/primary"
                         android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_export_debug_log"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:layout_marginStart="8dp"
+                        android:text="导出日志"
+                        android:textSize="12sp"
+                        app:cornerRadius="18dp"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
                 </LinearLayout>
 
                 <!-- 当前题型 (支持横向滑动，隐藏时结构仍需完整保留以配合 HomeFragment.kt) -->

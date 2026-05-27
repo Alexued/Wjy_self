@@ -53,8 +53,8 @@ object AppPreferences {
     private const val KEY_FIXED_REGION_SET = "fixed_region_set"
 
     // 默认值
-    const val DEFAULT_BASE_URL = "https://api.deepseek.com"
-    private const val DEFAULT_MODEL = "deepseek-chat"
+    const val DEFAULT_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1"
+    private const val DEFAULT_MODEL = "mimo-v2.5-pro"
     const val DEFAULT_API_KEY = ""
     const val DEFAULT_CLOUD_OCR_TOKEN = ""
 

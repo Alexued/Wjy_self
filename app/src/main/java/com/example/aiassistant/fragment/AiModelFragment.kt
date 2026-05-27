@@ -12,6 +12,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aiassistant.AiModelConfig
 import com.example.aiassistant.AppPreferences
+import com.example.aiassistant.DebugLogExporter
+import com.example.aiassistant.ModelTester
 import com.example.aiassistant.ModelManager
 import com.example.aiassistant.R
 import com.example.aiassistant.TeacherManager
@@ -120,7 +122,7 @@ class AiModelFragment : Fragment() {
         val ctx = requireContext()
         val isNew = config == null
         val inflater = LayoutInflater.from(ctx)
-        val form = inflater.inflate(R.layout.dialog_model_edit, null) as LinearLayout
+        val form = inflater.inflate(R.layout.dialog_model_edit, null)
         form.findViewById<TextView>(R.id.tv_dialog_title).text = if (isNew) "添加模型" else "编辑模型"
         val etName = form.findViewById<TextInputEditText>(R.id.et_model_name)
         val etUrl = form.findViewById<TextInputEditText>(R.id.et_model_url)
@@ -129,6 +131,7 @@ class AiModelFragment : Fragment() {
         val swThink = form.findViewById<SwitchMaterial>(R.id.sw_model_thinking)
         val swVision = form.findViewById<SwitchMaterial>(R.id.sw_model_vision)
         val spApiType = form.findViewById<Spinner>(R.id.sp_model_api_type)
+        val btnTestModel = form.findViewById<MaterialButton>(R.id.btn_test_model)
         
         // 获取分段选择器控件与包含容器
         val layoutBudgetGroup = form.findViewById<View>(R.id.layout_thinking_budget_group)
@@ -203,6 +206,56 @@ class AiModelFragment : Fragment() {
 
         // 初始化联动状态显示
         layoutBudgetGroup.visibility = if (swThink.isChecked) View.VISIBLE else View.GONE
+
+        fun collectConfigForTest(): AiModelConfig? {
+            val name = etName.text?.toString()?.trim().orEmpty().ifBlank { "临时模型" }
+            val url = etUrl.text?.toString()?.trim().orEmpty()
+            val key = etKey.text?.toString()?.trim().orEmpty()
+            val model = etModel.text?.toString()?.trim().orEmpty()
+            if (url.isBlank() || key.isBlank() || model.isBlank()) {
+                Toast.makeText(ctx, "请先填写 Base URL、API Key 和模型ID", Toast.LENGTH_SHORT).show()
+                return null
+            }
+            val apiType = when (spApiType.selectedItemPosition) {
+                1 -> "anthropic"
+                2 -> "gemini"
+                else -> "openai"
+            }
+            val budget = when (toggleBudget.checkedButtonId) {
+                R.id.btn_budget_speed -> 0
+                R.id.btn_budget_light -> 1024
+                R.id.btn_budget_deep -> 2048
+                R.id.btn_budget_expert -> 4096
+                else -> 4096
+            }
+            return AiModelConfig(
+                id = config?.id ?: "test", name = name, baseUrl = url, apiKey = key, model = model,
+                thinkingDefault = swThink.isChecked, isVision = swVision.isChecked,
+                apiType = apiType, thinkingBudget = budget
+            )
+        }
+
+        btnTestModel.setOnClickListener {
+            val testConfig = collectConfigForTest() ?: return@setOnClickListener
+            btnTestModel.isEnabled = false
+            btnTestModel.text = "测试中..."
+            ModelTester.test(testConfig,
+                onComplete = { result ->
+                    activity?.runOnUiThread {
+                        btnTestModel.isEnabled = true
+                        btnTestModel.text = "测试模型是否可用"
+                        AlertDialog.Builder(ctx).setTitle("模型可用").setMessage("接口测试通过，返回：$result").setPositiveButton("确定", null).show()
+                    }
+                },
+                onError = { error ->
+                    activity?.runOnUiThread {
+                        btnTestModel.isEnabled = true
+                        btnTestModel.text = "测试模型是否可用"
+                        AlertDialog.Builder(ctx).setTitle("模型不可用").setMessage(error).setPositiveButton("确定", null).show()
+                    }
+                }
+            )
+        }
 
         val dialog = AlertDialog.Builder(ctx, R.style.TransparentDialog)
             .setView(form)
@@ -451,10 +504,12 @@ class AiModelFragment : Fragment() {
         val btnExport = view?.findViewById<android.view.View>(R.id.btn_export_data)
         val btnImport = view?.findViewById<android.view.View>(R.id.btn_import_data)
         val btnImportBank = view?.findViewById<android.view.View>(R.id.btn_import_question_bank)
+        val btnExportDebugLog = view?.findViewById<android.view.View>(R.id.btn_export_debug_log)
 
         btnExport?.setOnClickListener { showExportDialog() }
         btnImport?.setOnClickListener { triggerImport() }
         btnImportBank?.setOnClickListener { triggerImportBank() }
+        btnExportDebugLog?.setOnClickListener { DebugLogExporter.export(requireContext()) }
     }
 
     private fun updateFixedUI(mode: Int) {

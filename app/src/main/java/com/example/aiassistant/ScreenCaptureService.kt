@@ -172,16 +172,11 @@ class ScreenCaptureService : Service() {
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            startForeground(
-                NOTIFICATION_ID,
-                buildNotification(),
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            startForeground(NOTIFICATION_ID, buildNotification())
-        }
+        // 先以普通前台服务启动，避免 Android 14+ 在 MediaProjection 授权令牌尚未
+        // 绑定到服务前就声明 mediaProjection 类型而触发 SecurityException 闪退。
+        // 拿到录屏授权并创建 MediaProjection 后，再升级为 mediaProjection 类型。
+        @Suppress("DEPRECATION")
+        startForeground(NOTIFICATION_ID, buildNotification())
 
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
@@ -292,13 +287,22 @@ class ScreenCaptureService : Service() {
             savedProjectionData = data.clone() as Intent
             isRequestingConsent = false  // 授权成功，重置标记
 
-            showFloatBall()
-            updateSmallBallVisibility()
             try {
+                // Android 10+：在真正拿到授权后再声明 mediaProjection 前台服务类型。
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    startForeground(
+                        NOTIFICATION_ID,
+                        buildNotification(),
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    )
+                }
                 setupMediaProjection(resultCode, data)
+                showFloatBall()
+                updateSmallBallVisibility()
             } catch (e: Exception) {
                 Log.e(TAG, "MediaProjection setup failed", e)
                 Toast.makeText(this, "录屏初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
+                stopSelf()
             }
         } else {
             Toast.makeText(this, "录屏授权无效，请重试", Toast.LENGTH_SHORT).show()
@@ -576,6 +580,20 @@ class ScreenCaptureService : Service() {
                 val msg = if (bankMatch != null) "📝 错题已录入（来自题库）" else "📝 错题已录入（OCR识别）"
                 Toast.makeText(this@ScreenCaptureService, msg, Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+
+    internal fun handleAnalysisCrash(stage: String, throwable: Throwable, bitmap: Bitmap? = null) {
+        Log.e(TAG, "AI分析链路异常: $stage", throwable)
+        try { bitmap?.recycle() } catch (_: Exception) {}
+        mainHandler.post {
+            hideBallProgress()
+            updateResultCard("❌ AI 分析失败（$stage）：${throwable.message ?: throwable.javaClass.simpleName}\n\n请到 设置 → 数据备份与管理 → 导出问题日志，把日志文件发给开发者继续定位。", isAiResponse = false)
+            isCapturing = false
+            isSilentCapture = false
+            cancelCaptureTimeout()
+            reattachSmallBall()
         }
     }
 

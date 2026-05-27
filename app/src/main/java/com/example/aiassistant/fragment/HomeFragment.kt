@@ -14,6 +14,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aiassistant.AppPreferences
+import com.example.aiassistant.DebugLogExporter
 import com.example.aiassistant.QuestionType
 import com.example.aiassistant.R
 import com.example.aiassistant.TeacherManager
@@ -39,6 +40,7 @@ class HomeFragment : Fragment() {
     private lateinit var tvFloatStatus: TextView
     private lateinit var tvActiveTeacher: TextView
     private lateinit var btnManageTeachers: MaterialButton
+    private lateinit var btnExportDebugLog: MaterialButton
     private lateinit var layoutTypeChips: LinearLayout
 
     private lateinit var tvTotalCount: TextView
@@ -136,6 +138,7 @@ class HomeFragment : Fragment() {
         tvFloatStatus = view.findViewById(R.id.tv_float_status)
         tvActiveTeacher = view.findViewById(R.id.tv_active_teacher)
         btnManageTeachers = view.findViewById(R.id.btn_manage_teachers)
+        btnExportDebugLog = view.findViewById(R.id.btn_export_debug_log)
         layoutTypeChips = view.findViewById(R.id.layout_type_chips)
         tvTotalCount = view.findViewById(R.id.tv_total_count)
         rvModules = view.findViewById(R.id.rv_modules)
@@ -171,6 +174,7 @@ class HomeFragment : Fragment() {
         }
 
         btnManageTeachers.setOnClickListener { showTeacherDialog() }
+        btnExportDebugLog.setOnClickListener { DebugLogExporter.export(requireContext()) }
 
         switchFloatBall.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -257,6 +261,7 @@ class HomeFragment : Fragment() {
         if (!isAdded) return
         if (!QuestionBankManager.isLoaded()) {
             tvTotalCount.text = "题库加载中..."
+            QuestionBankManager.addOnReadyListener { loadModules() }
             return
         }
 
@@ -330,13 +335,12 @@ class HomeFragment : Fragment() {
             }
 
             holder.itemView.setOnClickListener {
+                // 点击父模块名称/卡片：直接按当前父模块下所有子模块随机取题刷题
+                onChildClick(module)
+            }
+            holder.ivExpand.setOnClickListener {
                 val currentlyExpanded = expandedPositions.contains(position)
-                if (currentlyExpanded) {
-                    expandedPositions.remove(position)
-                } else {
-                    expandedPositions.add(position)
-                }
-                // 使用官方的标准局部更新，强制触发 RecyclerView 和外层 ScrollView 的自适应高度重测，完全解决无法展开或底端截断问题
+                if (currentlyExpanded) expandedPositions.remove(position) else expandedPositions.add(position)
                 notifyItemChanged(position)
             }
         }

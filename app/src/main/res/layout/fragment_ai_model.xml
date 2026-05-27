@@ -895,6 +895,19 @@
                     app:cornerRadius="14dp"
                     android:textSize="14sp" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_export_debug_log"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:text="🧾  导出问题日志"
+                    android:textColor="@color/primary"
+                    app:strokeColor="@color/primary"
+                    app:strokeWidth="1.5dp"
+                    app:cornerRadius="14dp"
+                    android:textSize="14sp" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

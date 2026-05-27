@@ -48,6 +48,7 @@ class QuestionBankFragment : Fragment() {
     private fun loadModules() {
         if (!QuestionBankManager.isLoaded()) {
             tvTotalCount.text = "题库加载中..."
+            QuestionBankManager.addOnReadyListener { loadModules() }
             return
         }
 
@@ -120,13 +121,12 @@ class QuestionBankFragment : Fragment() {
             }
 
             holder.itemView.setOnClickListener {
+                // 点击父模块名称/卡片：直接按当前父模块下所有子模块随机取题刷题
+                onChildClick(module)
+            }
+            holder.ivExpand.setOnClickListener {
                 val currentlyExpanded = expandedPositions.contains(position)
-                if (currentlyExpanded) {
-                    expandedPositions.remove(position)
-                } else {
-                    expandedPositions.add(position)
-                }
-                // 使用官方的标准局部更新，强制触发 RecyclerView 重测重绘，彻底解决在手机上无法展开完整的适配问题
+                if (currentlyExpanded) expandedPositions.remove(position) else expandedPositions.add(position)
                 notifyItemChanged(position)
             }
         }

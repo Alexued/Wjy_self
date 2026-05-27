@@ -14,7 +14,7 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
     companion object {
         private const val TAG = "QuestionBankDb"
         private const val DB_NAME = "question_bank_v2.db"
-        private const val DB_VERSION = 4
+        private const val DB_VERSION = 5
 
         const val T_MODULES = "modules"
         const val T_QUESTIONS = "questions"
@@ -125,6 +125,16 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 5) {
+            db.execSQL("DROP TABLE IF EXISTS $T_FTS")
+            db.execSQL("DROP TABLE IF EXISTS $T_QUESTIONS")
+            db.execSQL("DROP TABLE IF EXISTS $T_MATERIALS")
+            db.execSQL("DROP TABLE IF EXISTS $T_MODULES")
+            db.execSQL("DROP TABLE IF EXISTS meta")
+            db.execSQL("DROP TABLE IF EXISTS completed_questions")
+            onCreate(db)
+            return
+        }
         if (oldVersion < 3) {
             // 添加 stem_html 列
             db.execSQL("ALTER TABLE $T_QUESTIONS ADD COLUMN stem_html TEXT DEFAULT ''")
@@ -153,6 +163,39 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
             db.delete(T_MODULES, null, null)
             db.delete(T_FTS, null, null)
 
+            val assetManager = context.assets
+
+            // 优先导入内置完整备份题库（低内存 JSONL 版本）。
+            // 注意：不要一次性 readText() 读取 70MB+ 大 JSON，否则低内存设备启动即 OOM。
+            val embeddedBackupFiles = assetManager.list("bank") ?: emptyArray()
+            if (embeddedBackupFiles.contains("ai_assistant_questions.jsonl") &&
+                embeddedBackupFiles.contains("ai_assistant_modules.json")) {
+                onProgress?.invoke("导入内置完整题库...")
+                importFullBackupJsonlFromAssets(context, db, onProgress)
+                val meta = ContentValues().apply {
+                    put("key", "imported")
+                    put("value", "1")
+                }
+                db.insertWithOnConflict("meta", null, meta, SQLiteDatabase.CONFLICT_REPLACE)
+                db.setTransactionSuccessful()
+                Log.i(TAG, "内置完整题库导入完成(JSONL)")
+                return
+            }
+
+            // 兼容旧资源：仅在没有 JSONL 时才导入单体 JSON。
+            if (embeddedBackupFiles.contains("ai_assistant_full_bank.json")) {
+                onProgress?.invoke("导入内置完整题库...")
+                importFullBackupFromAsset(context, db, "bank/ai_assistant_full_bank.json", onProgress)
+                val meta = ContentValues().apply {
+                    put("key", "imported")
+                    put("value", "1")
+                }
+                db.insertWithOnConflict("meta", null, meta, SQLiteDatabase.CONFLICT_REPLACE)
+                db.setTransactionSuccessful()
+                Log.i(TAG, "内置完整题库导入完成")
+                return
+            }
+
             // 插入模块
             var sortOrder = 0
             for ((parentName, children) in MODULE_TREE) {
@@ -178,7 +221,6 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
             }
 
             // 导入题目
-            val assetManager = context.assets
             val bankFiles = assetManager.list("bank") ?: emptyArray()
 
             var total = 0
@@ -284,6 +326,151 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
     }
 
     // ── 查询方法 ──────────────────────────────────────────────────────
+
+    private fun importFullBackupJsonlFromAssets(context: Context, db: SQLiteDatabase, onProgress: ((String) -> Unit)? = null) {
+        // modules 很小，可以一次读取；materials/questions 使用 JSONL 逐行导入，避免大字符串和大 JSONArray 占用堆内存。
+        val modulesJson = context.assets.open("bank/ai_assistant_modules.json")
+            .bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val modules = JSONArray(modulesJson)
+        for (i in 0 until modules.length()) {
+            val m = modules.getJSONObject(i)
+            val values = ContentValues().apply {
+                put("id", m.getString("id"))
+                put("name", m.getString("name"))
+                val parentId = m.optString("parent_id", "")
+                if (parentId.isBlank()) putNull("parent_id") else put("parent_id", parentId)
+                put("sort_order", m.optInt("sort_order", i))
+            }
+            db.insertWithOnConflict(T_MODULES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        var materialCount = 0
+        val bankFiles = context.assets.list("bank") ?: emptyArray()
+        if (bankFiles.contains("ai_assistant_materials.jsonl")) {
+            context.assets.open("bank/ai_assistant_materials.jsonl").bufferedReader(Charsets.UTF_8).useLines { lines ->
+                lines.forEach { line ->
+                    if (line.isBlank()) return@forEach
+                    val m = JSONObject(line)
+                    val values = ContentValues().apply {
+                        put("id", m.getString("id"))
+                        put("content", m.optString("content", ""))
+                    }
+                    db.insertWithOnConflict(T_MATERIALS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                    materialCount++
+                }
+            }
+        }
+
+        var questionCount = 0
+        context.assets.open("bank/ai_assistant_questions.jsonl").bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                if (line.isBlank()) return@forEach
+                if (questionCount % 1000 == 0) onProgress?.invoke("导入题目 ${questionCount}...")
+                val q = JSONObject(line)
+                val id = q.optString("id", q.optString("key"))
+                val stem = q.optString("stem", q.optString("title", ""))
+                if (id.isBlank() || stem.length < 2) return@forEach
+                val moduleId = q.getString("module_id")
+                val rate = q.optInt("rate", 0)
+                val questionValues = ContentValues().apply {
+                    put("id", id)
+                    put("module_id", moduleId)
+                    put("stem", stem)
+                    put("stem_html", q.optString("stem_html", q.optString("title_html", "")))
+                    put("material_id", q.optString("material_id", ""))
+                    put("options", q.opt("options")?.toString() ?: "[]")
+                    put("answer", q.optString("answer", ""))
+                    put("analysis", q.optString("analysis", ""))
+                    put("knowledge_point", q.optString("knowledge_point", ""))
+                    put("source", q.optString("source", ""))
+                    put("rate", rate)
+                    put("difficulty", q.optString("difficulty", calculateDifficulty(rate)))
+                    put("title_images", q.opt("title_images")?.toString() ?: "[]")
+                }
+                db.insertWithOnConflict(T_QUESTIONS, null, questionValues, SQLiteDatabase.CONFLICT_REPLACE)
+                val ftsValues = ContentValues().apply {
+                    put("id", id)
+                    put("stem", toBigrams(stem))
+                    put("tags", toBigrams(q.optString("knowledge_point", "")))
+                }
+                db.insert(T_FTS, null, ftsValues)
+                questionCount++
+            }
+        }
+        Log.i(TAG, "JSONL完整题库导入完成: ${questionCount} 题, ${materialCount} 材料")
+    }
+
+    private fun importFullBackupFromAsset(context: Context, db: SQLiteDatabase, assetPath: String, onProgress: ((String) -> Unit)? = null) {
+        val json = context.assets.open(assetPath).bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val root = JSONObject(json)
+
+        val modules = root.getJSONArray("modules")
+        for (i in 0 until modules.length()) {
+            val m = modules.getJSONObject(i)
+            val values = ContentValues().apply {
+                put("id", m.getString("id"))
+                put("name", m.getString("name"))
+                val parentId = m.optString("parent_id", "")
+                if (parentId.isBlank()) putNull("parent_id") else put("parent_id", parentId)
+                put("sort_order", m.optInt("sort_order", i))
+            }
+            db.insertWithOnConflict(T_MODULES, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        val materials = root.optJSONArray("materials") ?: JSONArray()
+        for (i in 0 until materials.length()) {
+            val m = materials.getJSONObject(i)
+            val values = ContentValues().apply {
+                put("id", m.getString("id"))
+                put("content", m.optString("content", ""))
+            }
+            db.insertWithOnConflict(T_MATERIALS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+
+        val questions = root.getJSONArray("questions")
+        for (i in 0 until questions.length()) {
+            if (i % 1000 == 0) onProgress?.invoke("导入题目 ${i}/${questions.length()}...")
+            val q = questions.getJSONObject(i)
+            val id = q.optString("id", q.optString("key"))
+            val stem = q.optString("stem", q.optString("title", ""))
+            if (id.isBlank() || stem.length < 2) continue
+            val moduleId = q.getString("module_id")
+            val rate = q.optInt("rate", 0)
+            val questionValues = ContentValues().apply {
+                put("id", id)
+                put("module_id", moduleId)
+                put("stem", stem)
+                put("stem_html", q.optString("stem_html", q.optString("title_html", "")))
+                put("material_id", q.optString("material_id", ""))
+                put("options", q.opt("options")?.toString() ?: "[]")
+                put("answer", q.optString("answer", ""))
+                put("analysis", q.optString("analysis", ""))
+                put("knowledge_point", q.optString("knowledge_point", ""))
+                put("source", q.optString("source", ""))
+                put("rate", rate)
+                put("difficulty", q.optString("difficulty", calculateDifficulty(rate)))
+                put("title_images", q.opt("title_images")?.toString() ?: "[]")
+            }
+            db.insertWithOnConflict(T_QUESTIONS, null, questionValues, SQLiteDatabase.CONFLICT_REPLACE)
+            val ftsValues = ContentValues().apply {
+                put("id", id)
+                put("stem", toBigrams(stem))
+                put("tags", toBigrams(q.optString("knowledge_point", "")))
+            }
+            db.insert(T_FTS, null, ftsValues)
+        }
+        Log.i(TAG, "完整备份题库导入完成: ${questions.length()} 题")
+    }
+
+    private fun getModuleAndChildIds(moduleId: String): List<String> {
+        val ids = mutableListOf(moduleId)
+        readableDatabase.rawQuery("SELECT id FROM $T_MODULES WHERE parent_id = ?", arrayOf(moduleId)).use { cursor ->
+            while (cursor.moveToNext()) ids.add(cursor.getString(0))
+        }
+        return ids
+    }
+
+    private fun placeholders(count: Int): String = List(count) { "?" }.joinToString(",")
 
     fun getModules(): List<QuestionModule> {
         val modules = mutableListOf<QuestionModule>()
@@ -429,42 +616,34 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
 
     fun getQuestionsByRateRange(moduleId: String, rateMin: Int, rateMax: Int, limit: Int): List<Question> {
         val questions = mutableListOf<Question>()
-        
-        // 1. 尝试先获取未做过的题目
+        val moduleIds = getModuleAndChildIds(moduleId)
+        val inClause = placeholders(moduleIds.size)
+        val args = moduleIds + listOf(rateMin.toString(), rateMax.toString(), limit.toString())
         readableDatabase.rawQuery(
             "SELECT q.id, q.stem, q.stem_html, q.options, q.answer, q.analysis, q.knowledge_point, q.source, q.rate, q.title_images, q.material_id, COALESCE(m.content, ''), q.difficulty " +
             "FROM $T_QUESTIONS q LEFT JOIN $T_MATERIALS m ON q.material_id = m.id " +
-            "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? " +
+            "WHERE q.module_id IN ($inClause) AND q.rate >= ? AND q.rate <= ? " +
             "AND q.id NOT IN (SELECT question_id FROM completed_questions) " +
             "ORDER BY RANDOM() LIMIT ?",
-            arrayOf(moduleId, rateMin.toString(), rateMax.toString(), limit.toString())
+            args.toTypedArray()
         ).use { cursor ->
-            while (cursor.moveToNext()) {
-                questions.add(cursorToQuestion(cursor))
-            }
+            while (cursor.moveToNext()) questions.add(cursorToQuestion(cursor))
         }
-        
-        // 2. 如果未做过的题目不足，且该范围内所有题目均已做完，则自动重置已做记录并重新派送
+
         if (questions.size < limit) {
             val totalInModuleRange = getQuestionCountByRateRange(moduleId, rateMin, rateMax)
             val completedInModuleRange = getCompletedQuestionCountByRateRange(moduleId, rateMin, rateMax)
-            
             if (completedInModuleRange >= totalInModuleRange && totalInModuleRange > 0) {
-                // 该范围的所有题都做完了，重置它们以允许重新派送
                 resetCompletedQuestionsByRange(moduleId, rateMin, rateMax)
-                
-                // 再次尝试获取
                 val remainingLimit = limit - questions.size
                 readableDatabase.rawQuery(
                     "SELECT q.id, q.stem, q.stem_html, q.options, q.answer, q.analysis, q.knowledge_point, q.source, q.rate, q.title_images, q.material_id, COALESCE(m.content, ''), q.difficulty " +
                     "FROM $T_QUESTIONS q LEFT JOIN $T_MATERIALS m ON q.material_id = m.id " +
-                    "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? " +
+                    "WHERE q.module_id IN ($inClause) AND q.rate >= ? AND q.rate <= ? " +
                     "ORDER BY RANDOM() LIMIT ?",
-                    arrayOf(moduleId, rateMin.toString(), rateMax.toString(), remainingLimit.toString())
+                    (moduleIds + listOf(rateMin.toString(), rateMax.toString(), remainingLimit.toString())).toTypedArray()
                 ).use { cursor ->
-                    while (cursor.moveToNext()) {
-                        questions.add(cursorToQuestion(cursor))
-                    }
+                    while (cursor.moveToNext()) questions.add(cursorToQuestion(cursor))
                 }
             }
         }
@@ -472,21 +651,22 @@ class QuestionBankDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null
     }
 
     fun getCompletedQuestionCountByRateRange(moduleId: String, rateMin: Int, rateMax: Int): Int {
-        return readableDatabase.rawQuery(
-            "SELECT COUNT(*) FROM $T_QUESTIONS q " +
-            "WHERE q.module_id = ? AND q.rate >= ? AND q.rate <= ? " +
-            "AND q.id IN (SELECT question_id FROM completed_questions)",
-            arrayOf(moduleId, rateMin.toString(), rateMax.toString())
-        ).use { cursor ->
-            if (cursor.moveToFirst()) cursor.getInt(0) else 0
-        }
+        val moduleIds = getModuleAndChildIds(moduleId)
+        val inClause = placeholders(moduleIds.size)
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM $T_QUESTIONS q JOIN completed_questions c ON q.id = c.question_id " +
+            "WHERE q.module_id IN ($inClause) AND q.rate >= ? AND q.rate <= ?",
+            (moduleIds + listOf(rateMin.toString(), rateMax.toString())).toTypedArray()
+        ).use { cursor -> return if (cursor.moveToFirst()) cursor.getInt(0) else 0 }
     }
 
     fun resetCompletedQuestionsByRange(moduleId: String, rateMin: Int, rateMax: Int) {
-        writableDatabase.execSQL(
-            "DELETE FROM completed_questions WHERE question_id IN (" +
-            "SELECT id FROM $T_QUESTIONS WHERE module_id = ? AND rate >= ? AND rate <= ?)",
-            arrayOf(moduleId, rateMin.toString(), rateMax.toString())
+        val moduleIds = getModuleAndChildIds(moduleId)
+        val inClause = placeholders(moduleIds.size)
+        writableDatabase.delete(
+            "completed_questions",
+            "question_id IN (SELECT id FROM $T_QUESTIONS WHERE module_id IN ($inClause) AND rate >= ? AND rate <= ?)",
+            (moduleIds + listOf(rateMin.toString(), rateMax.toString())).toTypedArray()
         )
     }
 

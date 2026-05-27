@@ -24,10 +24,14 @@ object ModelManager {
         // 没有模型则创建默认
         if (models.isEmpty()) {
             models.add(AiModelConfig(
-                name = "默认模型",
+                name = "小米 Mimo",
                 baseUrl = AppPreferences.getApiBaseUrl(context),
                 apiKey = AppPreferences.getApiKey(context),
-                model = AppPreferences.getApiModel(context)
+                model = AppPreferences.getApiModel(context),
+                thinkingDefault = true,
+                isVision = false,
+                apiType = "openai",
+                thinkingBudget = 4096
             ))
             save(context)
         }
