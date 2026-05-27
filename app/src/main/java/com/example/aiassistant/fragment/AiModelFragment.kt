@@ -132,6 +132,7 @@ class AiModelFragment : Fragment() {
         val swVision = form.findViewById<SwitchMaterial>(R.id.sw_model_vision)
         val spApiType = form.findViewById<Spinner>(R.id.sp_model_api_type)
         val btnTestModel = form.findViewById<MaterialButton>(R.id.btn_test_model)
+        val btnFetchModels = form.findViewById<MaterialButton>(R.id.btn_fetch_models)
         
         // 获取分段选择器控件与包含容器
         val layoutBudgetGroup = form.findViewById<View>(R.id.layout_thinking_budget_group)
@@ -232,6 +233,49 @@ class AiModelFragment : Fragment() {
                 id = config?.id ?: "test", name = name, baseUrl = url, apiKey = key, model = model,
                 thinkingDefault = swThink.isChecked, isVision = swVision.isChecked,
                 apiType = apiType, thinkingBudget = budget
+            )
+        }
+
+        fun currentApiType(): String = when (spApiType.selectedItemPosition) {
+            1 -> "anthropic"
+            2 -> "gemini"
+            else -> "openai"
+        }
+
+        btnFetchModels.setOnClickListener {
+            val url = etUrl.text?.toString()?.trim().orEmpty()
+            val key = etKey.text?.toString()?.trim().orEmpty()
+            if (url.isBlank() || key.isBlank()) {
+                Toast.makeText(ctx, "请先填写 Base URL 和 API Key", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            btnFetchModels.isEnabled = false
+            btnFetchModels.text = "识别中..."
+            ModelTester.fetchModels(url, key, currentApiType(),
+                onComplete = { models ->
+                    activity?.runOnUiThread {
+                        btnFetchModels.isEnabled = true
+                        btnFetchModels.text = "自动识别可用模型"
+                        val items = models.toTypedArray()
+                        AlertDialog.Builder(ctx)
+                            .setTitle("选择可用模型")
+                            .setItems(items) { _, which ->
+                                val selected = items[which]
+                                etModel.setText(selected)
+                                if (etName.text.isNullOrBlank()) etName.setText(selected)
+                                Toast.makeText(ctx, "已选择模型：$selected", Toast.LENGTH_SHORT).show()
+                            }
+                            .setNegativeButton("取消", null)
+                            .show()
+                    }
+                },
+                onError = { error ->
+                    activity?.runOnUiThread {
+                        btnFetchModels.isEnabled = true
+                        btnFetchModels.text = "自动识别可用模型"
+                        AlertDialog.Builder(ctx).setTitle("识别失败").setMessage(error).setPositiveButton("确定", null).show()
+                    }
+                }
             )
         }
 
