@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/colorBgPrimary"
+    android:orientation="vertical">
+
+    <com.apk.claw.android.widget.CommonToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="56pt"
+        android:paddingHorizontal="16pt" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="16pt"
+        android:paddingBottom="24pt">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/layoutPageTabs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12pt"
+                android:orientation="horizontal">
+
+                <com.apk.claw.android.widget.KButton
+                    android:id="@+id/btnTaskPage"
+                    android:layout_width="0dp"
+                    android:layout_height="40pt"
+                    android:layout_weight="1"
+                    android:text="@string/home_tab_tasks"
+                    android:textSize="14pt" />
+
+                <Space
+                    android:layout_width="10pt"
+                    android:layout_height="1pt" />
+
+                <com.apk.claw.android.widget.KButton
+                    android:id="@+id/btnPermissionPage"
+                    android:layout_width="0dp"
+                    android:layout_height="40pt"
+                    android:layout_weight="1"
+                    android:text="@string/home_tab_permissions"
+                    android:textSize="14pt" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutTaskPage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12pt"
+                    app:cardBackgroundColor="@color/colorContainerBrighten"
+                    app:cardCornerRadius="12pt"
+                    app:cardElevation="1pt">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16pt">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/home_local_task_title"
+                            android:textColor="@color/colorTextPrimary"
+                            android:textSize="16pt"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvCurrentModel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4pt"
+                            android:textColor="@color/colorTextSecondary"
+                            android:textSize="12pt" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10pt"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/home_debug_mode"
+                                android:textColor="@color/colorTextSecondary"
+                                android:textSize="13pt" />
+
+                            <androidx.appcompat.widget.SwitchCompat
+                                android:id="@+id/switchDebugMode"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="" />
+
+                        </LinearLayout>
+
+                        <EditText
+                            android:id="@+id/etTaskInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="104pt"
+                            android:layout_marginTop="12pt"
+                            android:background="@drawable/bg_input_field"
+                            android:gravity="top|start"
+                            android:hint="@string/home_task_input_hint"
+                            android:inputType="textMultiLine|textCapSentences"
+                            android:maxLines="5"
+                            android:minLines="3"
+                            android:padding="12pt"
+                            android:textColor="@color/colorTextPrimary"
+                            android:textColorHint="@color/colorTextTertiary"
+                            android:textSize="14pt" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12pt"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <com.apk.claw.android.widget.KButton
+                                android:id="@+id/btnStartTask"
+                                android:layout_width="0dp"
+                                android:layout_height="44pt"
+                                android:layout_weight="1"
+                                android:text="@string/home_start_task"
+                                android:textSize="15pt" />
+
+                            <Space
+                                android:layout_width="10pt"
+                                android:layout_height="1pt" />
+
+                            <com.apk.claw.android.widget.KButton
+                                android:id="@+id/btnNewTask"
+                                android:layout_width="104pt"
+                                android:layout_height="44pt"
+                                android:text="@string/home_new_task"
+                                android:textSize="15pt"
+                                app:btnBackground="@color/colorBrandLowButtonBg"
+                                app:btnTextColor="@color/colorBrandOnContainer" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.apk.claw.android.widget.KButton
+                    android:id="@+id/btnCancelTask"
+                    android:layout_width="match_parent"
+                    android:layout_height="48pt"
+                    android:layout_marginTop="16pt"
+                    android:text="@string/home_cancel_task"
+                    android:textSize="16pt"
+                    android:visibility="gone"
+                    app:btnBackground="@color/colorErrorPrimary"
+                    app:btnTextColor="@color/colorErrorOnPrimary" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20pt"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/home_task_history_title"
+                        android:textColor="@color/colorTextPrimary"
+                        android:textSize="16pt"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvClearHistory"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:padding="8pt"
+                        android:text="@string/home_clear_history"
+                        android:textColor="@color/colorBrandPrimary"
+                        android:textSize="13pt" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/llTaskHistory"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8pt"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutPermissionPage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.apk.claw.android.widget.PermissionCardView
+                    android:id="@+id/cardAccessibility"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16pt"
+                    app:cardIcon="@drawable/ic_accessibility"
+                    app:cardTitle="@string/home_card_accessibility_title"
+                    app:cardSubtitle="@string/home_card_accessibility_subtitle" />
+
+                <com.apk.claw.android.widget.PermissionCardView
+                    android:id="@+id/cardNotification"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12pt"
+                    app:cardIcon="@drawable/ic_notification"
+                    app:cardTitle="@string/home_card_notification_title"
+                    app:cardSubtitle="@string/home_card_notification_subtitle" />
+
+                <com.apk.claw.android.widget.PermissionCardView
+                    android:id="@+id/cardSystemWindow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12pt"
+                    app:cardIcon="@drawable/ic_window"
+                    app:cardTitle="@string/home_card_system_window_title"
+                    app:cardSubtitle="@string/home_card_system_window_subtitle" />
+
+                <com.apk.claw.android.widget.PermissionCardView
+                    android:id="@+id/cardBattery"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12pt"
+                    app:cardIcon="@drawable/ic_battery"
+                    app:cardTitle="@string/home_card_battery_title"
+                    app:cardSubtitle="@string/home_card_battery_subtitle" />
+
+                <com.apk.claw.android.widget.PermissionCardView
+                    android:id="@+id/cardStorage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12pt"
+                    app:cardIcon="@drawable/ic_storage"
+                    app:cardTitle="@string/home_card_storage_title"
+                    app:cardSubtitle="@string/home_card_storage_subtitle" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>
